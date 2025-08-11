@@ -1,5 +1,5 @@
-#ifndef EVENTO_INC_EVENTO_H_ // polyspace MISRA-CPP:16-2-1 :No Functional side effect
-#define EVENTO_INC_EVENTO_H_ // polyspace MISRA-CPP:16-2-1 :No Functional side effect
+#ifndef EVENTO_INC_EVENTO_H_ 
+#define EVENTO_INC_EVENTO_H_
 
 #include <string>
 
