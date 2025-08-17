@@ -2,6 +2,7 @@
 #define ANALISE_POSTURAL_SENSOR_H
 
 #include <stdbool.h>
+#include <mpu6050_i2c.h>
 
 // Variáveis globais para armazenar os últimos ângulos lidos
 extern float g_roll;
@@ -13,7 +14,7 @@ extern float g_yaw;
  * 
  * @return true se conseguiu ler os sensores com sucesso, false caso contrário
  */
-bool requisitaPosicoes(void);
+bool requisitaPosicoes(mpu6050_t *mpu);
 
 /**
  * Compara posições atuais com limites de segurança.

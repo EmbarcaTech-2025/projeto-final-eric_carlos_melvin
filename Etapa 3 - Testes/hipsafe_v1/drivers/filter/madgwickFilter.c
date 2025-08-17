@@ -7,7 +7,8 @@
 
 #include "madgwickFilter.h"
 
-struct quaternion q_est = { 1, 0, 0, 0};       // initialize with as unit vector with real component  = 1
+// Commented since it isn't necessary in this code.
+// struct quaternion q_est = {1, 0, 0, 0};       // initialize with as unit vector with real component  = 1
 
 struct quaternion quat_mult (struct quaternion L, struct quaternion R){
     
@@ -25,10 +26,11 @@ struct quaternion quat_mult (struct quaternion L, struct quaternion R){
 // The resulting quaternion is a global variable (q_est), so it is not returned or passed by reference/pointer
 // Gyroscope Angular Velocity components are in Radians per Second
 // Accelerometer componets will be normalized
-void imu_filter(float ax, float ay, float az, float gx, float gy, float gz){
+// Note.1: q_est is no longer a global variable, it is passed by a different .c file.
+void imu_filter(struct quaternion *q_est, float ax, float ay, float az, float gx, float gy, float gz){
     
     //Variables and constants
-    struct quaternion q_est_prev = q_est;
+    struct quaternion q_est_prev = *q_est;
     struct quaternion q_est_dot = {0};            // used as a place holder in equations 42 and 43
     //const struct quaternion q_g_ref = {0, 0, 0, 1};// equation (23), reference to field of gravity for gradient descent optimization (not needed because I used eq 25 instead of eq 21
     struct quaternion q_a = {0, ax, ay, az};    // equation (24) raw acceleration values, needs to be normalized
@@ -112,8 +114,8 @@ void imu_filter(float ax, float ay, float az, float gx, float gy, float gz){
     quat_scalar(&gradient, BETA);             // multiply normalized gradient by beta
     quat_sub(&q_est_dot, q_w, gradient);        // subtract above from q_w, the integrated gyro quaternion
     quat_scalar(&q_est_dot, DELTA_T);
-    quat_add(&q_est, q_est_prev, q_est_dot);     // Integrate orientation rate to find position
-    quat_Normalization(&q_est);                 // normalize the orientation of the estimate
+    quat_add(q_est, q_est_prev, q_est_dot);     // Integrate orientation rate to find position
+    quat_Normalization(q_est);                 // normalize the orientation of the estimate
                                                 //(shown in diagram, plus always use unit quaternions for orientation)
    
 }
