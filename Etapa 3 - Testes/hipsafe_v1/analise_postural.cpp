@@ -46,7 +46,6 @@ int main()
         .id = 0 // ID do MPU6050
     };
 
-    /*
     mpu6050_t mpu_1 = {
         .i2c = i2c1,
         .sda_gpio = I2C1_SDA,
@@ -54,19 +53,16 @@ int main()
         .addr = MPU6050_ADDR_1,
         .id = 1
     };
-    */
 
-    /*
     mpu6050_t mpu_2 = {
         .i2c = i2c0,
         .sda_gpio = I2C0_SDA,
         .scl_gpio = I2C0_SCL,
-        .addr = MPU6050_ADDR_0,
+        .addr = MPU6050_ADDR_1,
         .id = 2
     };
-    */
 
-    mpu6050_t mpu_list[] = {mpu_0}; // mpu_1, mpu_2};
+    mpu6050_t mpu_list[] = {mpu_0, mpu_1, mpu_2};
 
     // Inicializar I2C para os MPUs
     printf("Configurando cada sensor MPU6050...\n");
