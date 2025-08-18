@@ -63,6 +63,7 @@ bool comparaPosicoes()
 {
     // Aqui pode-se adicionar outras regras de comparação se necessário
     // Para este exemplo, sempre retorna true
+    
     return false;
 }
 

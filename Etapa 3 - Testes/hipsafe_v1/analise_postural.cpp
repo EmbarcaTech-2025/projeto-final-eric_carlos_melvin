@@ -39,25 +39,25 @@ int main()
     
     // Estrutura de dados para cada MPU6050
     mpu6050_t mpu_0 = {
-        .i2c = i2c0, // I2C instance
-        .sda_gpio = I2C0_SDA, // SDA GPIO pin
-        .scl_gpio = I2C0_SCL, // SCL GPIO pin
+        .i2c = i2c1, // I2C instance
+        .sda_gpio = I2C1_SDA, // SDA GPIO pin
+        .scl_gpio = I2C1_SCL, // SCL GPIO pin
         .addr = MPU6050_ADDR_0, // Endereço I2C do MPU6050
         .id = 0 // ID do MPU6050
     };
 
     mpu6050_t mpu_1 = {
-        .i2c = i2c0,
-        .sda_gpio = I2C0_SDA,
-        .scl_gpio = I2C0_SCL,
+        .i2c = i2c1,
+        .sda_gpio = I2C1_SDA,
+        .scl_gpio = I2C1_SCL,
         .addr = MPU6050_ADDR_1,
         .id = 1
     };
 
     mpu6050_t mpu_2 = {
-        .i2c = i2c1,
-        .sda_gpio = I2C1_SDA,
-        .scl_gpio = I2C1_SCL,
+        .i2c = i2c0,
+        .sda_gpio = I2C0_SDA,
+        .scl_gpio = I2C0_SCL,
         .addr = MPU6050_ADDR_0,
         .id = 2
     };
@@ -164,7 +164,7 @@ int main()
             else 
             {
                 if (contador_prints == 0) { // Mostra apenas quando outros dados são exibidos
-                    printf("Posições fora dos limites seguros\n");
+                   // printf("Posições fora dos limites seguros\n");
                 }
             }
         }
@@ -173,7 +173,7 @@ int main()
             printf("Erro ao ler sensores!\n");
         }
         
-        sleep_ms(10); // Taxa de amostragem 100Hz (período = 10ms, DELTA_T = 0.01s)
+        sleep_ms(10); // Should de 10ms. Taxa de amostragem 100Hz (período = 10ms, DELTA_T = 0.01s)
     }
     return 0;
 }

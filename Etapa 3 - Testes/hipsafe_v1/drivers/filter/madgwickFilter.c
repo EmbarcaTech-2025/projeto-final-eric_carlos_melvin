@@ -121,7 +121,7 @@ void imu_filter(struct quaternion *q_est, float ax, float ay, float az, float gx
 }
 
 /*
- returns as pointers, roll pitch and yaw from the quaternion generated in imu_filter
+ Returns as pointers, roll pitch and yaw from the quaternion generated in imu_filter
  Assume right hand system
  Roll is about the x axis, represented as phi
  Pitch is about the y axis, represented as theta
