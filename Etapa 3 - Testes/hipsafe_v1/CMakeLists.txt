@@ -46,6 +46,9 @@ add_executable(hipsafe_v1
     drivers/sdcard/hw_config.c
     drivers/mpu6050/mpu6050_i2c.c
     drivers/filter/madgwickFilter.c
+    drivers/Fusion/FusionOffset.c
+    drivers/Fusion/FusionAhrs.c
+    drivers/Fusion/FusionCompass.c
     evento/evento.cpp
 )
 
@@ -65,6 +68,7 @@ target_include_directories(hipsafe_v1 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/drivers/sdcard
     ${CMAKE_CURRENT_LIST_DIR}/drivers/mpu6050
     ${CMAKE_CURRENT_LIST_DIR}/drivers/filter
+    ${CMAKE_CURRENT_LIST_DIR}/drivers/Fusion
     ${CMAKE_CURRENT_LIST_DIR}/evento
 )
 

@@ -1,148 +1,114 @@
 #include "drivers/mpu6050/mpu6050_i2c.h"
-#include "drivers/filter/madgwickFilter.h"
+#include "Fusion/Fusion.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
+#include "analise_postural_sensor.h"
 
 #ifndef PI
 #define PI 3.14159265359f
 #endif
 
+// Configurações da aplicação
+#define SAMPLE_RATE 100.0f
+#define SAMPLE_PERIOD (1.0f / SAMPLE_RATE)
+
 // Variáveis globais para armazenar os últimos ângulos lidos
 float g_roll = 0.0f, g_pitch = 0.0f, g_yaw = 0.0f;
 
-// Variáveis para calibração do giroscópio
-static float gyro_offset[3] = {0.0f, 0.0f, 0.0f};
-static bool calibrated = false;
+// Variáveis globais para Fusion
+CalibrationData accel_cal = {0};
+CalibrationData gyro_cal = {0};
+FusionAhrs ahrs;
+bool fusion_initialized = false;
 
-// Função para calibrar o giroscópio
-void calibrateGyro() 
+// Função para converter dados brutos do MPU6050 para unidades físicas
+void convert_mpu6050_data(int16_t raw_accel[3], int16_t raw_gyro[3], FusionVector *accel, FusionVector *gyro) 
 {
-    const int samples = 1000;
-    float sum[3] = {0.0f, 0.0f, 0.0f};
-    int16_t accel_raw[3], gyro_raw[3], temp_raw;
+    // Obter configurações de range
+    uint8_t accel_range = mpu6050_get_accel_range();
+    uint8_t gyro_range = mpu6050_get_gyro_range();
     
-    for(int i = 0; i < samples; i++) 
+    // Determinar sensibilidade do acelerômetro
+    float accel_sensitivity;
+    switch (accel_range) 
     {
-        mpu6050_read_raw(accel_raw, gyro_raw, &temp_raw);
-        sum[0] += gyro_raw[0];
-        sum[1] += gyro_raw[1];
-        sum[2] += gyro_raw[2];
-        
-        // Pequeno delay entre leituras (ajuste conforme seu sistema)
-        for(volatile int j = 0; j < 10000; j++); // Delay simples
+        case 0: accel_sensitivity = ACCEL_SENS_2G; break;
+        case 1: accel_sensitivity = ACCEL_SENS_4G; break;
+        case 2: accel_sensitivity = ACCEL_SENS_8G; break;
+        case 3: accel_sensitivity = ACCEL_SENS_16G; break;
+        default: accel_sensitivity = ACCEL_SENS_2G; break;
     }
     
-    gyro_offset[0] = sum[0] / samples;
-    gyro_offset[1] = sum[1] / samples;
-    gyro_offset[2] = sum[2] / samples;
+    // Determinar sensibilidade do giroscópio
+    float gyro_sensitivity;
+    switch (gyro_range) 
+    {
+        case 0: gyro_sensitivity = GYRO_SENS_250DPS; break;
+        case 1: gyro_sensitivity = GYRO_SENS_500DPS; break;
+        case 2: gyro_sensitivity = GYRO_SENS_1000DPS; break;
+        case 3: gyro_sensitivity = GYRO_SENS_2000DPS; break;
+        default: gyro_sensitivity = GYRO_SENS_250DPS; break;
+    }
     
-    calibrated = true;
-    printf("Calibração concluída! Offsets: X=%.2f, Y=%.2f, Z=%.2f\n", 
-           gyro_offset[0], gyro_offset[1], gyro_offset[2]);
+    // Converter para unidades físicas
+    accel->axis.x = (float)raw_accel[0] / accel_sensitivity;
+    accel->axis.y = (float)raw_accel[1] / accel_sensitivity;
+    accel->axis.z = (float)raw_accel[2] / accel_sensitivity;
+    
+    gyro->axis.x = (float)raw_gyro[0] / gyro_sensitivity;
+    gyro->axis.y = (float)raw_gyro[1] / gyro_sensitivity;
+    gyro->axis.z = (float)raw_gyro[2] / gyro_sensitivity;
 }
 
-// Função para resetar o filtro
-void resetFilter() 
+// Função para aplicar calibração aos dados dos sensores
+FusionVector apply_calibration(FusionVector raw_data, CalibrationData *cal) 
 {
-    extern struct quaternion q_est;
-    q_est.q1 = 1.0f;
-    q_est.q2 = 0.0f;
-    q_est.q3 = 0.0f;
-    q_est.q4 = 0.0f;
-    calibrated = false; // Força nova calibração
-    printf("Filtro resetado!\n");
-}
-
-// Detecta se o sensor está parado (baixa atividade do giroscópio)
-bool isStationary(float gx, float gy, float gz) {
-    const float threshold = 0.02f; // rad/s - ajuste conforme necessário
-    float magnitude = sqrtf(gx*gx + gy*gy + gz*gz);
-    return (magnitude < threshold);
-}
-
-// Função para aplicar filtro passa-baixa simples nos ângulos
-void applyLowPassFilter(float* current, float new_value, float alpha) {
-    *current = alpha * new_value + (1.0f - alpha) * (*current);
+    if (!cal->calibrated) 
+    {
+        return raw_data;
+    }
+    
+    return FusionCalibrationInertial(raw_data, cal->misalignment, 
+                                   cal->sensitivity, cal->offset);
 }
 
 // Requisita as posições dos sensores e atualiza os ângulos globais
 bool requisitaPosicoes() 
 {
-    // Calibra o giroscópio na primeira execução
-    if (!calibrated) 
+    // Verificar se o sistema foi inicializado
+    if (!fusion_initialized) 
     {
-        calibrateGyro();
+        printf("Erro: Sistema Fusion não inicializado!\n");
+        return false;
     }
     
-    int16_t accel_raw[3], gyro_raw[3], temp_raw;
-    float ax, ay, az, gx, gy, gz;
-    static float filtered_roll = 0.0f, filtered_pitch = 0.0f, filtered_yaw = 0.0f;
-    static bool first_run = true;
+    int16_t raw_accel[3], raw_gyro[3], temp;
+    FusionVector accel_raw, gyro_raw;
     
-    // Constantes de conversão
-    const float accel_scale = 1.0f / ACCEL_SENS_2G;    // Para ±2g
-    const float gyro_scale = 1.0f / GYRO_SENS_250DPS;  // Para ±250°/s
-    const float deg_to_rad = PI / 180.0f;              // Conversão para rad/s
-    const float filter_alpha = 0.8f;                   // Fator do filtro passa-baixa (0.0 a 1.0)
-
-    // Lê dados brutos do sensor
-    mpu6050_read_raw(accel_raw, gyro_raw, &temp_raw);
+    // Ler dados brutos do MPU6050
+    mpu6050_read_raw(raw_accel, raw_gyro, &temp);
     
-    // Converte acelerômetro para g (unidades de gravidade)
-    ax = accel_raw[0] * accel_scale;
-    ay = accel_raw[1] * accel_scale;
-    az = accel_raw[2] * accel_scale;
+    // Converter para unidades físicas
+    convert_mpu6050_data(raw_accel, raw_gyro, &accel_raw, &gyro_raw);
     
-    // Converte giroscópio para rad/s e aplica calibração
-    gx = (gyro_raw[0] - gyro_offset[0]) * gyro_scale * deg_to_rad;
-    gy = (gyro_raw[1] - gyro_offset[1]) * gyro_scale * deg_to_rad;
-    gz = (gyro_raw[2] - gyro_offset[2]) * gyro_scale * deg_to_rad;
-
-    // Verifica se o sensor está parado
-    bool is_stationary = isStationary(gx, gy, gz);
+    // Aplicar calibração
+    FusionVector accel_calibrated = apply_calibration(accel_raw, &accel_cal);
+    FusionVector gyro_calibrated = apply_calibration(gyro_raw, &gyro_cal);
     
-    // Se estiver parado por muito tempo, aplique correção adicional
-    static int stationary_count = 0;
-    if (is_stationary) 
-    {
-        stationary_count++;
-        if (stationary_count > 100) { // Após ~1 segundo parado (assumindo 100Hz)
-            // Força correção do acelerômetro mais forte quando parado
-            // Isso ajuda a corrigir a deriva quando não há movimento
-            stationary_count = 100; // Evita overflow
-        }
-    } else {
-        stationary_count = 0;
-    }
-
-    // Aplica o filtro de Madgwick
-    imu_filter(ax, ay, az, gx, gy, gz);
+    // Atualizar AHRS (sem magnetômetro)
+    FusionAhrsUpdateNoMagnetometer(&ahrs, gyro_calibrated, accel_calibrated, SAMPLE_PERIOD);
     
-    // Converte quaternion para ângulos de Euler
-    float temp_roll, temp_pitch, temp_yaw;
-    eulerAngles(q_est, &temp_roll, &temp_pitch, &temp_yaw);
-
-    // Aplica filtro passa-baixa para suavizar os ângulos
-    if (first_run) {
-        filtered_roll = temp_roll;
-        filtered_pitch = temp_pitch;
-        filtered_yaw = temp_yaw;
-        first_run = false;
-    } else {
-        applyLowPassFilter(&filtered_roll, temp_roll, filter_alpha);
-        applyLowPassFilter(&filtered_pitch, temp_pitch, filter_alpha);
-        applyLowPassFilter(&filtered_yaw, temp_yaw, filter_alpha);
-    }
-
-    // Atualiza variáveis globais com valores filtrados
-    g_roll = filtered_roll;
-    g_pitch = filtered_pitch;
-    g_yaw = filtered_yaw;
-
-    // Exibe os resultados
-    printf("Roll: %6.2f°, Pitch: %6.2f°, Yaw: %6.2f° %s\n", 
-           g_roll, g_pitch, g_yaw, is_stationary ? "[PARADO]" : "");
+    // Obter orientação em ângulos de Euler
+    FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
+    
+    // Atualizar variáveis globais
+    g_roll = euler.angle.roll;
+    g_pitch = euler.angle.pitch;
+    g_yaw = euler.angle.yaw;
+    
+    // Exibe os resultados (mantido conforme solicitado)
+    printf("Roll: %6.2f°, Pitch: %6.2f°, Yaw: %6.2f°\n", g_roll, g_pitch, g_yaw);
     
     return true;
 }
@@ -158,5 +124,5 @@ bool comparaPosicoes()
 // Verifica se a posição é perigosa (roll > 90 graus)
 bool posicaoPerigosa() 
 {
-    return (fabsf(g_roll) > 90.0f);
+    return (g_roll > 90.0f);
 }

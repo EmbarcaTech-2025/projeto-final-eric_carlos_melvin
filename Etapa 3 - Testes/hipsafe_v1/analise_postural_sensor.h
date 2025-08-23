@@ -1,32 +1,30 @@
 #ifndef ANALISE_POSTURAL_SENSOR_H
 #define ANALISE_POSTURAL_SENSOR_H
 
+#include "Fusion/Fusion.h"
 #include <stdbool.h>
 
-// Variáveis globais para armazenar os últimos ângulos lidos
-extern float g_roll;
-extern float g_pitch;
-extern float g_yaw;
+// Estruturas para calibração
+typedef struct {
+    FusionVector offset;
+    FusionVector sensitivity;
+    FusionMatrix misalignment;
+    bool calibrated;
+} CalibrationData;
 
-/**
- * Requisita as posições dos sensores e atualiza os ângulos globais.
- * 
- * @return true se conseguiu ler os sensores com sucesso, false caso contrário
- */
+// Variáveis globais externas
+extern float g_roll, g_pitch, g_yaw;
+extern CalibrationData accel_cal, gyro_cal;
+extern FusionAhrs ahrs;
+extern bool fusion_initialized;
+
+// Funções principais
 bool requisitaPosicoes(void);
-
-/**
- * Compara posições atuais com limites de segurança.
- * 
- * @return true se as posições estão dentro dos limites seguros
- */
 bool comparaPosicoes(void);
-
-/**
- * Verifica se a posição atual é perigosa.
- * 
- * @return true se a posição é perigosa (pitch > 90 graus)
- */
 bool posicaoPerigosa(void);
 
-#endif
+// Funções auxiliares
+void convert_mpu6050_data(int16_t raw_accel[3], int16_t raw_gyro[3], FusionVector *accel, FusionVector *gyro);
+FusionVector apply_calibration(FusionVector raw_data, CalibrationData *cal);
+
+#endif // ANALISE_POSTURAL_SENSOR_H
