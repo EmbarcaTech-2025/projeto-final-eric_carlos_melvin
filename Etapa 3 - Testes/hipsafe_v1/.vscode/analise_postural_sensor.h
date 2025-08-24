@@ -28,15 +28,10 @@ bool posicaoPerigosa(void);
 // Funções auxiliares
 void convert_mpu6050_data(int16_t raw_accel[3], int16_t raw_gyro[3], FusionVector *accel, FusionVector *gyro, int sensor_id);
 FusionVector apply_calibration(FusionVector raw_data, CalibrationData *cal);
-float normalize_angle(float angle);
-void calculate_relative_angles(int sensor_ref, int sensor_target, float *roll_rel, float *pitch_rel, float *yaw_rel);
-void get_all_relative_angles(float relative_angles[NUM_SENSORS-1][NUM_SENSORS-1][3]);
 
 // Novas funções para múltiplos sensores
 void calibrate_all_sensors(void);
 void initialize_all_fusion_systems(void);
-void initialize_all_fusion_systems_stable(void);
 bool read_all_sensor_positions(void);
-void quick_gyroscope_calibration(void);
 
 #endif // ANALISE_POSTURAL_SENSOR_H

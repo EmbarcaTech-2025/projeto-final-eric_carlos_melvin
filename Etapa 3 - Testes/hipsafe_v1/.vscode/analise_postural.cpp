@@ -16,6 +16,7 @@ extern "C" {
 
 // Configurações da aplicação
 #define SAMPLE_RATE 100.0f
+#define CALIBRATION_SAMPLES 1000
 
 // Declarações de funções
 bool eventoAberto();
@@ -23,6 +24,7 @@ void ligaAlarme();
 void desligaAlarme();
 void silenciarAlarme();
 void armazenarNoSDCard(const Evento& evento);
+void calibrate_sensors();
 void initialize_fusion_system();
 void buzzer_beep(uint32_t duration_ms);
 
@@ -39,15 +41,38 @@ void buzzer_beep(uint32_t duration_ms)
     buzzer_off(BUZZER_A);
 }
 
+// Função para calibração de offset (bias) dos sensores
+void calibrate_sensors() 
+{
+    printf("Iniciando calibração dos sensores...\n");
+    printf("Mantenha os sensores IMÓVEIS durante a calibração!\n");
+    
+    // Som de início da calibração (3 beeps curtos e rápidos)
+    printf("Emitindo sinal sonoro de início...\n");
+    for (int i = 0; i < 3; i++) {
+        buzzer_beep(100); // Beep curto de 100ms
+        sleep_ms(150);    // Pausa de 150ms entre beeps
+    }
+    sleep_ms(500); // Pausa antes de iniciar calibração
+    
+    // Usar a nova função para calibrar todos os sensores
+    calibrate_all_sensors();
+    
+    // Som de fim da calibração (1 beep longo e grave)
+    printf("Calibração concluída!\n");
+    printf("Emitindo sinal sonoro de conclusão...\n");
+    buzzer_beep(800); // Beep longo de 800ms para indicar sucesso
+}
+
 // Função para configurar o algoritmo AHRS
 void initialize_fusion_system() 
 {
     printf("Configurando sistema Fusion AHRS...\n");
     
-    // Usar a nova função estável que inclui calibração
-    initialize_all_fusion_systems_stable();
+    // Usar a nova função para inicializar todos os sistemas Fusion
+    initialize_all_fusion_systems();
     
-    printf("AHRS configurado e calibrado para todos os sensores!\n");
+    printf("AHRS configurado para todos os sensores!\n");
 }
 
 int main() 
@@ -82,6 +107,9 @@ int main()
     printf("Aguardando estabilização do sensor...\n");
     sleep_ms(100);
     
+    // Calibrar sensores
+    calibrate_sensors();
+    
     // Configurar sistema Fusion AHRS
     initialize_fusion_system();
     
@@ -90,7 +118,6 @@ int main()
     setup_buttons();
     
     // Inicializar SD Card
-    //
     printf("Inicializando SD Card...\n");
     sd_card_init();
     
