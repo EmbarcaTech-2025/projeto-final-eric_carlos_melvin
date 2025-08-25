@@ -30,7 +30,7 @@ add_executable(ACELEROMETRO
 )
 
 # Pull in our pico_stdlib which aggregates commonly used features
-target_link_libraries(ACELEROMETRO pico_stdlib hardware_i2c)
+target_link_libraries(ACELEROMETRO pico_stdlib hardware_i2c pico_multicore hardware_timer)
 
 # enable usb output, disable uart output
 pico_enable_stdio_usb(ACELEROMETRO 1)
