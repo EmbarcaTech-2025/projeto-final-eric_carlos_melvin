@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
 
 // Headers C
 extern "C" {
@@ -15,6 +16,10 @@ extern "C" {
 // Headers C++
 #include "evento/evento.h"
 
+// Interface do usuario
+static const int32_t sample_period = 2000;
+static const int32_t print_period = 10000;  
+
 // Declarações de funções
 bool eventoAberto();
 void ligaAlarme();
@@ -27,103 +32,37 @@ bool alarme_silenciado = false;
 std::vector<Evento*> eventosAbertos;
 static int contador_prints = 0; // Contador para reduzir frequência dos prints (100Hz seria muito output)
 bool mpu_flags[3] = {false, false, false}; // Flags para cada MPU6050
-int main() 
-{
-    // Inicialização do sistema
-    stdio_init_all(); // Inicializa UART/USB para debug
+static bool sample_mpu6050 = false;
 
-    sleep_ms(5000); // Aguarda 5 segundos para estabilizar a conexão serial
+// Cria estruturas para os temporizadores de execução periódica
+repeating_timer_t mpu_timer;
+repeating_timer_t print_timer;
 
-    printf("=== HIPSAFE v1 - Sistema de Monitoramento Postural ===\n");
-    printf("Iniciando sistema...\n");
-    
-    // Estrutura de dados para cada MPU6050
-    mpu6050_t mpu_0 = {
-        .i2c = i2c1, // I2C instance
-        .sda_gpio = I2C1_SDA, // SDA GPIO pin
-        .scl_gpio = I2C1_SCL, // SCL GPIO pin
-        .addr = MPU6050_ADDR_0, // Endereço I2C do MPU6050
-        .id = 0 // ID do MPU6050
-    };
+volatile bool sample_flag = false;
+volatile bool print_flag = false;
 
-    mpu6050_t mpu_1 = {
-        .i2c = i2c1,
-        .sda_gpio = I2C1_SDA,
-        .scl_gpio = I2C1_SCL,
-        .addr = MPU6050_ADDR_1,
-        .id = 1
-    };
+bool mpu_timer_callback(struct repeating_timer *t) {
+    sample_flag = true;
+    return true;
+}
 
-    mpu6050_t mpu_2 = {
-        .i2c = i2c0,
-        .sda_gpio = I2C0_SDA,
-        .scl_gpio = I2C0_SCL,
-        .addr = MPU6050_ADDR_0,
-        .id = 2
-    };
+bool print_timer_callback(struct repeating_timer *t){
+    print_flag = true;
+    return true;
+}
 
-    mpu6050_t mpu_list[] = {mpu_0, mpu_1, mpu_2};
+void core1_entry(){
+    // Inicializa temporizador local para prints periódicos
 
-    // Inicializar I2C para os MPUs
-    printf("Configurando cada sensor MPU6050...\n");
-    for(auto& mpu : mpu_list) {
-        mpu6050_setup_i2c(&mpu);
-        mpu6050_reset(&mpu); // Reinicia o sensor
+    add_repeating_timer_us(print_period, print_timer_callback, NULL, &print_timer);
 
-        // Configura o sensor para ±2g (mais sensível) e ±250°/s
-        mpu6050_set_accel_range(&mpu, 0); // 0 = ±2g
-        mpu6050_set_gyro_range(&mpu, 0);  // 0 = ±250°/s
-        sleep_ms(100);
-    }
-    printf("MPU6050s configurados: ±2g, ±250°/s\n");
-    
-    // Inicializar botões
-    printf("Inicializando botões...\n");
-    setup_buttons();
-    
-    // Inicializar buzzer
-    printf("Inicializando buzzer...\n");
-    buzzer_init();
-    
-    // Inicializar SD Card
-    // printf("Inicializando SD Card...\n");
-    // sd_card_init();
-    
-    printf("Sistema inicializado com sucesso!\n");
-    printf("Configuração: Taxa de amostragem 100Hz (período = 10ms)\n");
-    printf("Iniciando monitoramento postural...\n\n");
+    while(1){
+        if(print_flag){      
 
-    while (true) 
-    {
-        // Interrupção externa: Botão A pressionado
-        if (button_a_pressed) 
-        {
-            printf("Botão A pressionado!\n");
-            if (buzzer_alarm_is_on()) 
-            {
-                printf("Silenciando alarme...\n");
-                silenciarAlarme();
-                alarme_silenciado = true;
-            }
-            button_a_pressed = false; // Reset flag
-        }
+            printf("[MPU6050 0] Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f° | \n ", g_roll[0], g_pitch[0], g_yaw[0]);
+            printf("[MPU6050 1] Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f° | \n", g_roll[1], g_pitch[1], g_yaw[1]);
+            // printf("[MPU6050 2] Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°\n", g_roll[2], g_pitch[2], g_yaw[2]);
 
-        // Fluxo principal
-        for(auto& mpu : mpu_list){
-            mpu_flags[mpu.id] = requisitaPosicoes(&mpu);
-        }
-
-        // Entra uma vez os três sensores tenham sido atualizados.
-        // Obs. Este check parece meio redundante.
-        if (mpu_flags[0] && mpu_flags[1] && mpu_flags[2]) // Obtem os dados de posição dos sensores solicitados
-        {
-            // Mostra dados apenas a cada 50 iterações (~2Hz) para não sobrecarregar o terminal
-            contador_prints++;
-            if (contador_prints >= 50) {
-                // printf("Posições lidas - Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f° [100Hz]\n", g_roll[0], g_pitch[0], g_yaw[0]);
-                contador_prints = 0;
-            }
-            
             if (comparaPosicoes()) 
             {
                 if (posicaoPerigosa()) 
@@ -161,19 +100,111 @@ int main()
                     }
                 }
             }
-            else 
-            {
-                if (contador_prints == 0) { // Mostra apenas quando outros dados são exibidos
-                   // printf("Posições fora dos limites seguros\n");
-                }
-            }
+            print_flag = false;
         }
-        else 
+    }
+}
+
+int main() 
+{
+    // ! SETUP GERAL
+    stdio_init_all(); // Inicializa UART/USB para debug
+
+    sleep_ms(5000); // Aguarda 5 segundos para estabilizar a conexão serial
+
+    printf("=== HIPSAFE v1 - Sistema de Monitoramento Postural ===\n");
+    printf("Iniciando sistema...\n");
+    
+    // Estrutura de dados para cada MPU6050
+    mpu6050_t mpu_0 = {
+        .i2c = i2c1, // I2C instance
+        .sda_gpio = I2C1_SDA, // SDA GPIO pin
+        .scl_gpio = I2C1_SCL, // SCL GPIO pin
+        .addr = MPU6050_ADDR_0, // Endereço I2C do MPU6050
+        .id = 0 // ID do MPU6050
+    };
+
+    mpu6050_t mpu_1 = {
+        .i2c = i2c1,
+        .sda_gpio = I2C1_SDA,
+        .scl_gpio = I2C1_SCL,
+        .addr = MPU6050_ADDR_1,
+        .id = 1
+    };
+
+    /*
+    mpu6050_t mpu_2 = {
+        .i2c = i2c0,
+        .sda_gpio = I2C0_SDA,
+        .scl_gpio = I2C0_SCL,
+        .addr = MPU6050_ADDR_1,
+        .id = 2
+    };
+    */
+
+    mpu6050_t mpu_list[] = {mpu_0, mpu_1}; //, mpu_2}; //, mpu_1, mpu_2};
+
+    // Inicializar I2C para os MPUs
+    printf("Configurando cada sensor MPU6050...\n");
+    for(auto& mpu : mpu_list) {
+        printf("Estabeleceu comunicação I2C com MPU6050 ID %d no endereço 0x%02X\n", mpu.id, mpu.addr);
+        mpu6050_setup_i2c(&mpu);
+        printf("Fez setup do MPU6050\n");
+        mpu6050_reset(&mpu); // Reinicia o sensor
+        printf("Fez reset do MPU6050\n");
+
+        // Configura o sensor para ±2g (mais sensível) e ±250°/s
+        mpu6050_set_accel_range(&mpu, 0); // 0 = ±2g
+        mpu6050_set_gyro_range(&mpu, 0);  // 0 = ±250°/s
+        sleep_ms(100);
+    }
+    printf("MPU6050s configurados: ±2g, ±250°/s\n");
+    
+    // Inicializar botões
+    printf("Inicializando botões...\n");
+    setup_buttons();
+    
+    // Inicializar buzzer
+    printf("Inicializando buzzer...\n");
+    buzzer_init();
+    
+    // Inicializar SD Card
+    // printf("Inicializando SD Card...\n");
+    // sd_card_init();
+
+    // Inicializa multicore
+    multicore_launch_core1(core1_entry);
+
+    // Inicializa temporizador local para amostragem periódica dos sensores MPU6050
+    add_repeating_timer_us(sample_period, mpu_timer_callback, NULL, &mpu_timer);
+
+    printf("Sistema inicializado com sucesso!\n");
+    printf("Configuração: Taxa de amostragem 100Hz (período = 10ms)\n");
+    printf("Iniciando monitoramento postural...\n\n");
+
+    // ! TRATA EVENTOS EXTERNOS
+    while (true) 
+    {
+        // Interrupção externa: Botão A pressionado
+        if (button_a_pressed) 
         {
-            printf("Erro ao ler sensores!\n");
+            printf("Botão A pressionado!\n");
+            if (buzzer_alarm_is_on()) 
+            {
+                printf("Silenciando alarme...\n");
+                silenciarAlarme();
+                alarme_silenciado = true;
+            }
+            button_a_pressed = false; // Reset flag
         }
-        
-        sleep_ms(10); // Should de 10ms. Taxa de amostragem 100Hz (período = 10ms, DELTA_T = 0.01s)
+
+        // Fluxo principal
+        if(sample_flag){
+            for(int i = 0; i < 2; i++){
+                bool temp_val = requisitaPosicoes(&mpu_list[i]);
+            }
+            sample_flag = false;
+        }
     }
     return 0;
 }

@@ -34,7 +34,7 @@ project(hipsafe_v1 C CXX ASM)
 pico_sdk_init()
 
 # Add subdirectory for SD card library
-add_subdirectory(drivers/sdcard/lib/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI)
+# add_subdirectory(drivers/sdcard/lib/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI)
 
 # Add executable with C++ main file
 add_executable(hipsafe_v1 
@@ -42,8 +42,8 @@ add_executable(hipsafe_v1
     analise_postural_sensor.c
     drivers/button/button.c
     drivers/buzzer/buzzer.c
-    drivers/sdcard/SDCard.c
-    drivers/sdcard/hw_config.c
+    # drivers/sdcard/SDCard.c
+    # drivers/sdcard/hw_config.c
     drivers/mpu6050/mpu6050_i2c.c
     drivers/filter/MadgwickAHRS.c
     evento/evento.cpp
@@ -71,12 +71,14 @@ target_include_directories(hipsafe_v1 PRIVATE
 # Add the standard library and required libraries
 target_link_libraries(hipsafe_v1
     pico_stdlib
+    pico_multicore
     hardware_spi
     hardware_i2c
     hardware_pwm
     hardware_rtc
     hardware_dma
-    FatFs_SPI
+    hardware_timer
+    # FatFs_SPI
 )
 
 pico_add_extra_outputs(hipsafe_v1)

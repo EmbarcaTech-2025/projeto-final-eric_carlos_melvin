@@ -95,6 +95,7 @@ bool requisitaPosicoes(mpu6050_t *mpu)
                        &g_roll[mpu->id], &g_pitch[mpu->id], &g_yaw[mpu->id]);
 
     // Exibe os resultados em formato de tabela lado a lado para sensores 0 e 1
+    /*
     static int print_header = 1;
     if (mpu->id == 1) {
         if (print_header) {
@@ -109,6 +110,7 @@ bool requisitaPosicoes(mpu6050_t *mpu)
             g_roll[0], g_pitch[0], g_yaw[0],
             g_roll[1], g_pitch[1], g_yaw[1]);
     }
+    */
 
     return true;
 }
@@ -119,7 +121,7 @@ bool comparaPosicoes()
     // Aqui pode-se adicionar outras regras de comparação se necessário
     // Para este exemplo, sempre retorna true
     
-    return false;
+    return true;
 }
 
 // Verifica se a posição é perigosa (pitch > 90 graus)
