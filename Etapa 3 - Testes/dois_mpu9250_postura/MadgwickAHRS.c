@@ -9,7 +9,7 @@
 // 29/09/2011	SOH Madgwick    Initial release
 // 02/10/2011	SOH Madgwick	Optimised for reduced CPU load
 // 19/02/2012	SOH Madgwick	Magnetometer measurement is normalised
-//
+// 07/02/2025   HipSafe         Modified this library for the HipSafe project
 //=====================================================================================================
 
 //---------------------------------------------------------------------------------------------------
@@ -21,39 +21,78 @@
 //---------------------------------------------------------------------------------------------------
 // Definitions
 
-#define sampleFreq	100.0f		// sample frequency in Hz (match actual calling rate)
 #define betaDef		0.5f		// 2 * proportional gain (increased for faster convergence)
 #define betaDef2	0.05f		// 2 * proportional gain
-
-//---------------------------------------------------------------------------------------------------
-// Variable definitions
-
-volatile float beta = betaDef;								// 2 * proportional gain (Kp)
-volatile float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;	// quaternion of sensor frame relative to auxiliary frame
+#define betaDef3    0.2f        // Used for faster initial convergence.
 
 //---------------------------------------------------------------------------------------------------
 // Function declarations
 
-float invSqrt(float x);
+static inline float invSqrt(float x);
 
 //====================================================================================================
 // Functions
 
 //---------------------------------------------------------------------------------------------------
-// AHRS algorithm update
+// AHRS algorithm data structures initialization
 
-void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz) {
+/**
+ * @brief Initializes the MadgwickAHRS's imu_data_t data structure.
+ * 
+ * @param imu Pointer to the imu_data_t structure which`ll store the orientation and sensor data.
+ * @param desired_sample_freq Desired sample frequency in Hz.
+ */
+void MadgwickAHRSinit(AHRS_data_t* imu, float desired_sample_freq)
+{
+	// Inits quaternion of sensor frame relative to auxiliary frame
+	imu->orientation.q0 = 1.0f;
+	imu->orientation.q1 = 0.0f;
+	imu->orientation.q2 = 0.0f;
+	imu->orientation.q3 = 0.0f;
+	imu->beta = betaDef3; // 2 * proportional gain (Kp)
+	imu->sample_freq = desired_sample_freq; // sample frequency in Hz
+}
+
+//---------------------------------------------------------------------------------------------------
+// AHRS algorithm update (with magnetometer data)
+
+/**
+ * @brief Whenever called, updates the orientation quaternion based on IMU and magnetometer data.
+ * 
+ * @param imu Pointer to the imu_data_t structure.
+ */
+void MadgwickAHRSupdate(AHRS_data_t *imu) {
+
+	// Unpack the imu data structure locally, for compiler optimization if the optimization flags aren`t set
+	float gx = imu->gyro[0];
+	float gy = imu->gyro[1];
+	float gz = imu->gyro[2];
+	float ax = imu->accel[0];
+	float ay = imu->accel[1];
+	float az = imu->accel[2];
+	float mx = imu->mag[0];
+	float my = imu->mag[1];
+	float mz = imu->mag[2];
+	float q0 = imu->orientation.q0;
+	float q1 = imu->orientation.q1;
+	float q2 = imu->orientation.q2;
+	float q3 = imu->orientation.q3;
+	float beta = imu->beta;
+	float sampleFreq = imu->sample_freq;
+
+	// Use IMU algorithm if magnetometer measurement invalid (avoids NaN in magnetometer normalisation)
+	if((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) {
+		MadgwickAHRSupdateIMU(imu);
+		return;
+	}
+
+	// Define local variables for the Madgwick algorithm
 	float recipNorm;
 	float s0, s1, s2, s3;
 	float qDot1, qDot2, qDot3, qDot4;
 	float hx, hy;
 	float _2q0mx, _2q0my, _2q0mz, _2q1mx, _2bx, _2bz, _4bx, _4bz, _2q0, _2q1, _2q2, _2q3, _2q0q2, _2q2q3, q0q0, q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
 
-	// Use IMU algorithm if magnetometer measurement invalid (avoids NaN in magnetometer normalisation)
-	if((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) {
-		MadgwickAHRSupdateIMU(gx, gy, gz, ax, ay, az);
-		return;
-	}
 
 	// Rate of change of quaternion from gyroscope
 	qDot1 = 0.5f * (-q1 * gx - q2 * gy - q3 * gz);
@@ -106,7 +145,7 @@ void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float 
 		_4bx = 2.0f * _2bx;
 		_4bz = 2.0f * _2bz;
 
-		// Gradient decent algorithm corrective step
+		// Gradient descent algorithm corrective step
 		s0 = -_2q2 * (2.0f * q1q3 - _2q0q2 - ax) + _2q1 * (2.0f * q0q1 + _2q2q3 - ay) - _2bz * q2 * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (-_2bx * q3 + _2bz * q1) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + _2bx * q2 * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
 		s1 = _2q3 * (2.0f * q1q3 - _2q0q2 - ax) + _2q0 * (2.0f * q0q1 + _2q2q3 - ay) - 4.0f * q1 * (1 - 2.0f * q1q1 - 2.0f * q2q2 - az) + _2bz * q3 * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (_2bx * q2 + _2bz * q0) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + (_2bx * q3 - _4bz * q1) * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
 		s2 = -_2q0 * (2.0f * q1q3 - _2q0q2 - ax) + _2q3 * (2.0f * q0q1 + _2q2q3 - ay) - 4.0f * q2 * (1 - 2.0f * q1q1 - 2.0f * q2q2 - az) + (-_4bx * q2 - _2bz * q0) * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (_2bx * q1 + _2bz * q3) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + (_2bx * q0 - _4bz * q2) * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
@@ -125,23 +164,40 @@ void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float 
 	}
 
 	// Integrate rate of change of quaternion to yield quaternion
-	q0 += qDot1 * (1.0f / sampleFreq);
-	q1 += qDot2 * (1.0f / sampleFreq);
-	q2 += qDot3 * (1.0f / sampleFreq);
-	q3 += qDot4 * (1.0f / sampleFreq);
+	float dt = 1.0f / sampleFreq;
+	imu->orientation.q0 += qDot1 * dt;
+	imu->orientation.q1 += qDot2 * dt;
+	imu->orientation.q2 += qDot3 * dt;
+	imu->orientation.q3 += qDot4 * dt;
 
 	// Normalise quaternion
-	recipNorm = invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
-	q0 *= recipNorm;
-	q1 *= recipNorm;
-	q2 *= recipNorm;
-	q3 *= recipNorm;
+	recipNorm = invSqrt(imu->orientation.q0 * imu->orientation.q0 + imu->orientation.q1 * imu->orientation.q1 + imu->orientation.q2 * imu->orientation.q2 + imu->orientation.q3 * imu->orientation.q3);
+	imu->orientation.q0 *= recipNorm;
+	imu->orientation.q1 *= recipNorm;
+	imu->orientation.q2 *= recipNorm;
+	imu->orientation.q3 *= recipNorm;
 }
 
 //---------------------------------------------------------------------------------------------------
-// IMU algorithm update
+// IMU algorithm update (with no magnetometer data)
 
-void MadgwickAHRSupdateIMU(float gx, float gy, float gz, float ax, float ay, float az) {
+void MadgwickAHRSupdateIMU(AHRS_data_t *imu) {
+
+	// Unpack the imu data structure locally, for compiler optimization if the optimization flags aren`t set
+	float gx = imu->gyro[0];
+	float gy = imu->gyro[1];
+	float gz = imu->gyro[2];
+	float ax = imu->accel[0];
+	float ay = imu->accel[1];
+	float az = imu->accel[2];
+	float q0 = imu->orientation.q0;
+	float q1 = imu->orientation.q1;
+	float q2 = imu->orientation.q2;
+	float q3 = imu->orientation.q3;
+	float beta = imu->beta;
+	float sampleFreq = imu->sample_freq;
+
+	// Define local variables for the Madgwick algorithm
 	float recipNorm;
 	float s0, s1, s2, s3;
 	float qDot1, qDot2, qDot3, qDot4;
@@ -196,24 +252,25 @@ void MadgwickAHRSupdateIMU(float gx, float gy, float gz, float ax, float ay, flo
 	}
 
 	// Integrate rate of change of quaternion to yield quaternion
-	q0 += qDot1 * (1.0f / sampleFreq);
-	q1 += qDot2 * (1.0f / sampleFreq);
-	q2 += qDot3 * (1.0f / sampleFreq);
-	q3 += qDot4 * (1.0f / sampleFreq);
+	float dt = 1.0f / sampleFreq;
+	imu->orientation.q0 += qDot1 * dt;
+	imu->orientation.q1 += qDot2 * dt;
+	imu->orientation.q2 += qDot3 * dt;
+	imu->orientation.q3 += qDot4 * dt;
 
 	// Normalise quaternion
-	recipNorm = invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
-	q0 *= recipNorm;
-	q1 *= recipNorm;
-	q2 *= recipNorm;
-	q3 *= recipNorm;
+	recipNorm = invSqrt(imu->orientation.q0 * imu->orientation.q0 + imu->orientation.q1 * imu->orientation.q1 + imu->orientation.q2 * imu->orientation.q2 + imu->orientation.q3 * imu->orientation.q3);
+	imu->orientation.q0 *= recipNorm;
+	imu->orientation.q1 *= recipNorm;
+	imu->orientation.q2 *= recipNorm;
+	imu->orientation.q3 *= recipNorm;
 }
 
 //---------------------------------------------------------------------------------------------------
 // Fast inverse square-root
 // See: http://en.wikipedia.org/wiki/Fast_inverse_square_root
 
-float invSqrt(float x) {
+static inline float invSqrt(float x) {
 	float halfx = 0.5f * x;
 	float y = x;
 	long i = *(long*)&y;

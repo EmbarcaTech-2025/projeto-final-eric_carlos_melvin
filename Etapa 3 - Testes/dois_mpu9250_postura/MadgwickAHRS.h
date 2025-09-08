@@ -14,16 +14,30 @@
 #define MadgwickAHRS_h
 
 //----------------------------------------------------------------------------------------------------
-// Variable declaration
+// Data structures
 
-extern volatile float beta;				// algorithm gain
-extern volatile float q0, q1, q2, q3;	// quaternion of sensor frame relative to auxiliary frame
+// * Please note that in order to increase modularity, global variables were removed from this library.
+
+typedef struct {
+    float q0, q1, q2, q3; // Quaternion of sensor frame relative to auxiliary frame
+} quaternion_t;
+
+// For every sensor array, their information is organized as: [0]:x_axis, [1]:y_axis, [2]:z_axis
+typedef struct {
+    quaternion_t orientation; // Quaternion of sensor frame relative to auxiliary frame
+    float accel[3]; // Accelerometer measurements
+    float gyro[3]; // Gyroscope measurements
+    float mag[3]; // Magnetometer measurements
+    float beta; // Algorithm gain
+    float sample_freq; // Sampling frequency in Hz
+} AHRS_data_t;
 
 //---------------------------------------------------------------------------------------------------
-// Function declarations
+// Public function declarations
 
-void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
-void MadgwickAHRSupdateIMU(float gx, float gy, float gz, float ax, float ay, float az);
+void MadgwickAHRSinit(AHRS_data_t* imu, float desired_sample_freq);
+void MadgwickAHRSupdate(AHRS_data_t *imu);
+void MadgwickAHRSupdateIMU(AHRS_data_t *imu);
 
 #endif
 //=====================================================================================================

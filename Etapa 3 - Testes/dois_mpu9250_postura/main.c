@@ -4,7 +4,7 @@
 #include "imu_driver.h"
 #include "mpu9250_i2c.h"
 
- // Estrutura para o primeiro MPU9250
+// Estrutura para o primeiro MPU9250
 // ESTE SENSOR REPRESENTA O TRONCO
 mpu9250_t mpu_0 = {
     .i2c = i2c1,           // Use I2C1
@@ -59,6 +59,10 @@ int main()
     // Inicializa os drivers do IMU
     imu_init(&mpu_0, &config);
     imu_init(&mpu_1, &config);
+
+    // Confere se temos dados de orientação armazenados na memória não volatil do RP2040
+    // Caso não, inicia o processo de calibração inicial
+    // ? Será que não temos já um quaternion de orientação de torso inicial?
 
     // Inicia a aquisição e processamento dos dados para ambos os sensores
     imu_start_dual_sensors(&mpu_0, &mpu_1);
