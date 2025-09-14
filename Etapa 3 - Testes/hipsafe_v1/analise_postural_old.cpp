@@ -27,13 +27,14 @@ bool alarme_silenciado = false;
 std::vector<Evento*> eventosAbertos;
 static int contador_prints = 0; // Contador para reduzir frequência dos prints (100Hz seria muito output)
 bool mpu_flags[3] = {false, false, false}; // Flags para cada MPU6050
+
 int main() 
 {
-    // Inicialização do sistema
+    // ***************************************************************
+    // INICIALIZAÇÃO DO SISTEMA
+    // ***************************************************************
     stdio_init_all(); // Inicializa UART/USB para debug
-
-    sleep_ms(5000); // Aguarda 5 segundos para estabilizar a conexão serial
-
+    sleep_ms(1000); // Aguarda 1 segundos para estabilizar a conexão serial
     printf("=== HIPSAFE v1 - Sistema de Monitoramento Postural ===\n");
     printf("Iniciando sistema...\n");
     
@@ -85,9 +86,9 @@ int main()
     printf("Inicializando buzzer...\n");
     buzzer_init();
     
-    // Inicializar SD Card
-    // printf("Inicializando SD Card...\n");
-    // sd_card_init();
+    Inicializar SD Card
+    printf("Inicializando SD Card...\n");
+    sd_card_init();
     
     printf("Sistema inicializado com sucesso!\n");
     printf("Configuração: Taxa de amostragem 100Hz (período = 10ms)\n");
