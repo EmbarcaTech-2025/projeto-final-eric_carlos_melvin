@@ -4,6 +4,20 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "../rtc/rtc_utils.h"  // Para usar as funções do RTC DS3231
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Estrutura para armazenar um registro completo de movimento
+typedef struct {
+    char inicio[25];        // Início no formato ISO 8601 (ex: "2025-09-07T13:45:30Z")
+    char fim[25];           // Fim no formato ISO 8601 (ex: "2025-09-07T13:45:33Z")
+    char perna[16];         // "direita" ou "esquerda"
+    char movimento[20];     // Tipo de movimento (ex: "Flexão")
+    float angulo_maximo;    // Ângulo máximo (ex: 92.5)
+} movimento_data_t;
 
 // ============================================================================
 // DEFINIÇÕES DE HARDWARE - Configuração dos pinos SPI para o cartão SD
@@ -21,23 +35,25 @@
 
 /**
  * Inicializa o cartão SD e prepara o sistema de arquivos.
- * Configura o SPI, monta o sistema de arquivos FAT e cria o arquivo CSV com cabeçalho se necessário.
+ * Inicializa primeiro o RTC DS3231, depois configura o SPI, monta o sistema de arquivos FAT 
+ * e cria o arquivo CSV com cabeçalho se necessário.
  * 
  * @return true se a inicialização foi bem-sucedida, false caso contrário
  */
-bool init_sd_card(void);
+bool sd_card_init(void);
 
 /**
  * Adiciona uma nova linha de dados no arquivo CSV.
- * Os dados são gravados no formato: ID,DateTime,Permanencia,Alerta,Valor,Tipo
- * 
- * @param permanencia Duração no formato "H:MM:SS" (ex: "0:01:35")
- * @param alerta      Local/tipo do alerta (ex: "Perna Dir", "Perna Esq")
- * @param valor       Valor numérico do sensor (0-100, por exemplo)
- * @param tipo        Tipo de movimento (ex: "Abdução", "Rotação", "Flexão")
+ * Os dados são gravados no formato: Inicio,Fim,Perna,Movimento,AnguloMaximo
+ *
+ * @param inicio        Início no formato ISO 8601 (ex: "2025-09-07T13:45:30Z")
+ * @param fim           Fim no formato ISO 8601 (ex: "2025-09-07T13:45:33Z")
+ * @param perna         "direita" ou "esquerda"
+ * @param movimento     Tipo de movimento (ex: "Flexão")
+ * @param angulo_maximo Ângulo máximo (ex: 92.5)
  * @return true se o registro foi adicionado com sucesso, false caso contrário
  */
-bool add_csv_record(const char* permanencia, const char* alerta, int valor, const char* tipo);
+bool add_csv_record(const char* inicio, const char* fim, const char* perna, const char* movimento, float angulo_maximo);
 
 /**
  * Lê todo o arquivo CSV e exibe o conteúdo no console.
@@ -46,29 +62,28 @@ bool add_csv_record(const char* permanencia, const char* alerta, int valor, cons
 void view_csv_data(void);
 
 /**
- * Obtém a data/hora atual do RTC e formata como string.
- * O formato de saída é "M/D/YY HH:MM" (ex: "5/23/25 10:00")
- * 
+ * Obtém a data/hora atual do RTC DS3231 e formata como string ISO 8601.
+ * O formato de saída é "YYYY-MM-DDTHH:MM:SSZ" (ex: "2025-09-07T13:45:30Z")
+ * Se não conseguir ler do RTC, usa uma data padrão como fallback.
+ *
  * @param buffer      Buffer onde armazenar o resultado formatado
  * @param buffer_size Tamanho máximo do buffer
  */
-void get_current_datetime(char* buffer, size_t buffer_size);
+void get_current_datetime_iso(char* buffer, size_t buffer_size);
 
 /**
- * Inicializa o RTC com uma data/hora de demonstração.
- * Define uma data/hora específica para testes (23/05/2025 10:00:00).
+ * Função utilitária para registrar um movimento completo automaticamente.
+ * Captura o timestamp atual como início, executa a função de movimento fornecida,
+ * captura o timestamp final e registra tudo no CSV.
+ *
+ * @param perna         "direita" ou "esquerda"
+ * @param movimento     Tipo de movimento (ex: "Flexão")
+ * @param angulo_maximo Ângulo máximo atingido
+ * @return true se o registro foi adicionado com sucesso, false caso contrário
  */
-void init_rtc_demo(void);
-
-/**
- * Função de conveniência que combina init_rtc_demo() e init_sd_card().
- * Inicializa o RTC e o sistema de SD Card em uma única chamada.
- * 
- * @return true se ambas as inicializações foram bem-sucedidas, false caso contrário
- */
-static inline bool sd_card_init(void) {
-    init_rtc_demo();
-    return init_sd_card();
+bool register_movement_with_timestamps(const char* perna, const char* movimento, float angulo_maximo);
+#ifdef __cplusplus
 }
+#endif
 
 #endif

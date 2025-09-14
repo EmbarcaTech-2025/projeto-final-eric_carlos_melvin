@@ -49,7 +49,7 @@ static bool isEventOpen(LadoCorpo perna, TipoMovimento perigo) {
  * @return Orientacao - ângulos em graus de flexão, rotação e abdução
  * dentro de uma struct Orientacao
  */
-Orientacao getPosition(mpu6050_t mpu_list[3]) {
+Orientacao getPosition(mpu9250_t mpu_list[3]) {
     /*
         Eric ficou de fazer essa parte do algoritmo
         Resumindo ficaria algo assim:

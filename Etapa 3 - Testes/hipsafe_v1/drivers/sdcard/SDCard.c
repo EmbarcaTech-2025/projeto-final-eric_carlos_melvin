@@ -7,7 +7,6 @@
 #include <time.h>           // Funções relacionadas a tempo e data
 #include "pico/stdlib.h"    // Biblioteca padrão do Raspberry Pi Pico
 #include "hardware/spi.h"   // Biblioteca para comunicação SPI
-#include "hardware/rtc.h"   // Biblioteca para o relógio em tempo real RTC
 
 // Bibliotecas para o sistema de arquivos FAT no cartão SD
 #include "ff.h"             // FatFS - sistema de arquivos FAT
@@ -15,6 +14,9 @@
 #include "f_util.h"         // Utilitários para FatFS
 #include "hw_config.h"      // Configuração do hardware
 #include "sd_card.h"        // Driver do cartão SD
+
+// Biblioteca para RTC DS3231 
+#include "../rtc/rtc_utils.h" // Utilitários para RTC DS3231
 
 // ============================================================================
 // DEFINIÇÕES DE HARDWARE - Configuração dos pinos SPI para o cartão SD
@@ -30,21 +32,19 @@
 // ESTRUTURAS DE DADOS - Define como os dados serão organizados
 // ============================================================================
 
-// Estrutura para armazenar um registro completo de sensor
+// Estrutura para armazenar um registro completo de movimento
 typedef struct {
-    int id;                 // Identificador único do registro (1, 2, 3...)
-    char datetime[20];      // Data e hora no formato "5/23/25 10:00"
-    char permanencia[10];   // Duração no formato "0:00:35"
-    char alerta[20];        // Local/tipo do alerta ("Perna Dir", "Perna Esq")
-    int valor;              // Valor numérico do sensor (0-100, por exemplo)
-    char tipo[20];          // Tipo de movimento ("Abdução", "Rotação")
-} sensor_data_t;
+    char inicio[25];        // Início no formato ISO 8601 (ex: "2025-09-07T13:45:30Z")
+    char fim[25];           // Fim no formato ISO 8601 (ex: "2025-09-07T13:45:33Z")
+    char perna[16];         // "direita" ou "esquerda"
+    char movimento[20];     // Tipo de movimento (ex: "Flexão")
+    float angulo_maximo;    // Ângulo máximo (ex: 92.5)
+} movimento_data_t;
 
 // ============================================================================
 // VARIÁVEIS GLOBAIS - Dados compartilhados por todo o programa
 // ============================================================================
 
-static int next_id = 1;        // Próximo ID a ser usado (auto-incremento)
 static FATFS fs;               // Sistema de arquivos do cartão SD
 static bool sd_mounted = false; // Flag indicando se o SD está montado e pronto
 
@@ -52,73 +52,63 @@ static bool sd_mounted = false; // Flag indicando se o SD está montado e pronto
 // PROTÓTIPOS DAS FUNÇÕES - Declaração das funções antes de serem implementadas
 // ============================================================================
 
-bool init_sd_card(void);    // Inicializa o cartão SD e prepara o sistema de arquivos
-bool add_csv_record(const char* permanencia, const char* alerta, int valor, const char* tipo);  // Adiciona registro no CSV
+bool sd_card_init(void);    // Inicializa o cartão SD e prepara o sistema de arquivos
+bool add_csv_record(const char* inicio, const char* fim, const char* perna, const char* movimento, float angulo_maximo);  // Adiciona registro no CSV
 void view_csv_data(void);   // Lê e exibe todos os dados do arquivo CSV
-void get_current_datetime(char* buffer, size_t buffer_size);  // Obtém data/hora atual formatada
-void init_rtc_demo(void);   // Inicializa o RTC com data/hora de demonstração
+void get_current_datetime_iso(char* buffer, size_t buffer_size);  // Obtém data/hora atual formatada ISO 8601
 
 // ============================================================================
-// FUNÇÃO: init_rtc_demo()
-// PROPÓSITO: Configura o relógio interno com uma data/hora fictícia para demo
-// ============================================================================
-
-void init_rtc_demo(void) 
-{
-    // Cria uma estrutura com data/hora específica para demonstração
-    datetime_t t = {
-        .year  = 2025,      // Ano: 2025
-        .month = 5,         // Mês: Maio (5)
-        .day   = 23,        // Dia: 23
-        .dotw  = 5,         // Dia da semana: Friday (0=Domingo, 1=Segunda...)
-        .hour  = 10,        // Hora: 10h
-        .min   = 0,         // Minutos: 00min
-        .sec   = 0          // Segundos: 00seg
-    };
-    
-    rtc_init();                 // Inicializa o hardware do RTC
-    rtc_set_datetime(&t);       // Define a data/hora configurada acima
-    sleep_us(64);               // Aguarda 64 microssegundos para estabilizar
-}
-
-// ============================================================================
-// FUNÇÃO: get_current_datetime()
-// PROPÓSITO: Obtém a data/hora atual do RTC e formata como string
+// FUNÇÃO: get_current_datetime_iso()
+// PROPÓSITO: Obtém a data/hora atual do RTC DS3231 e formata como string ISO 8601
 // PARÂMETROS: buffer - onde armazenar o resultado, buffer_size - tamanho máximo
 // ============================================================================
-
-void get_current_datetime(char* buffer, size_t buffer_size) 
+void get_current_datetime_iso(char* buffer, size_t buffer_size)
 {
-    datetime_t t;                       // Estrutura para receber data/hora atual
-    rtc_get_datetime(&t);               // Lê data/hora atual do RTC
+    ds3231_data_t dt;
     
-    // Formata a data/hora como "5/23/25 10:00" e armazena no buffer
-    snprintf(buffer, buffer_size, "%d/%d/%02d %02d:%02d", 
-             t.month,           // Mês (1-12)
-             t.day,             // Dia (1-31)
-             t.year % 100,      // Ano com 2 dígitos (25 para 2025)
-             t.hour,            // Hora (0-23)
-             t.min);            // Minutos (0-59)
+    // Lê a data/hora atual do RTC DS3231
+    if (rtc_update_datetime(&dt)) 
+    {
+        // Calcula o ano completo (considerando century bit)
+        int year_full = (dt.century ? 2000 : 1900) + dt.year;
+        
+        // Formato: "YYYY-MM-DDTHH:MM:SSZ"
+        snprintf(buffer, buffer_size, "%04d-%02d-%02dT%02d:%02d:%02dZ",
+            year_full, dt.month, dt.date, dt.hours, dt.minutes, dt.seconds);
+    } 
+    else 
+    {
+        // Fallback caso não consiga ler do RTC
+        snprintf(buffer, buffer_size, "2025-01-01T00:00:00Z");
+        printf("Aviso: Não foi possível ler do RTC, usando data padrão\n");
+    }
 }
 
 // ============================================================================
-// FUNÇÃO: init_sd_card()
+// FUNÇÃO: sd_card_init()
 // PROPÓSITO: Inicializa o cartão SD e prepara o sistema de arquivos
 // RETORNO: true se sucesso, false se erro
 // ============================================================================
 
-bool init_sd_card(void) 
+bool sd_card_init(void) 
 {
     printf("Inicializando SD card...\n");
     
-    // PASSO 1: Inicializar o driver do cartão SD
+    // PASSO 1: Inicializar o RTC DS3231
+    printf("Inicializando RTC DS3231...\n");
+    rtc_ds3231_init();  // Usa a função de rtc_utils.c que configura automaticamente
+    printf("RTC DS3231 inicializado\n");
+    
+    // PASSO 2: Inicializar o driver do cartão SD
+    printf("Tentando inicializar driver SD...\n");
     if (!sd_init_driver()) 
     {
         printf("Erro: Falha ao inicializar driver SD\n");
         return false;               // Retorna erro se driver falhou
     }
+    printf("Driver SD inicializado com sucesso\n");
     
-    // PASSO 2: Obter referência do cartão SD configurado (primeiro cartão = índice 0)
+    // PASSO 3: Obter referência do cartão SD configurado (primeiro cartão = índice 0)
     sd_card_t* sd_card = sd_get_by_num(0);
     if (!sd_card) 
     {
@@ -126,7 +116,7 @@ bool init_sd_card(void)
         return false;               // Retorna erro se não encontrou o cartão
     }
     
-    // PASSO 3: Montar o sistema de arquivos FAT do cartão SD
+    // PASSO 4: Montar o sistema de arquivos FAT do cartão SD
     // "0:" = nome do drive, 1 = montar imediatamente
     FRESULT fr = f_mount(&fs, "0:", 1);
     if (fr != FR_OK) 
@@ -138,7 +128,7 @@ bool init_sd_card(void)
     sd_mounted = true;              // Marca que SD está pronto para uso
     printf("SD card montado com sucesso!\n");
     
-    // PASSO 4: Verificar se arquivo CSV já existe, se não, criar com cabeçalho
+    // PASSO 5: Verificar se arquivo CSV já existe, se não, criar com cabeçalho
     FIL file;                       // Estrutura para manipular arquivo
     fr = f_open(&file, "dados.csv", FA_READ);  // Tenta abrir arquivo para leitura
     
@@ -149,7 +139,7 @@ bool init_sd_card(void)
         if (fr == FR_OK) 
         {
             // Escreve o cabeçalho do CSV (nomes das colunas)
-            f_printf(&file, "ID,DateTime,Permanencia,Alerta,Valor,Tipo\n");
+            f_printf(&file, "Inicio,Fim,Perna,Movimento,AnguloMaximo\n");
             f_close(&file);         // Fecha o arquivo
             printf("Arquivo CSV criado com cabeçalho\n");
         } 
@@ -179,52 +169,71 @@ bool init_sd_card(void)
 // RETORNO: true se sucesso, false se erro
 // ============================================================================
 
-bool add_csv_record(const char* permanencia, const char* alerta, int valor, const char* tipo) 
+bool add_csv_record(const char* inicio, const char* fim, const char* perna, const char* movimento, float angulo_maximo)
 {
     // VERIFICAÇÃO: SD card deve estar montado e pronto
-    if (!sd_mounted) 
+    if (!sd_mounted)
     {
         printf("Erro: SD card não está montado\n");
         return false;
     }
-    
-    FIL file;                       // Estrutura para manipular arquivo
-    FRESULT fr;                     // Resultado das operações de arquivo
-    char datetime_str[20];          // Buffer para armazenar data/hora formatada
-    
-    // PASSO 1: Obter data/hora atual formatada
-    get_current_datetime(datetime_str, sizeof(datetime_str));
-    
-    // PASSO 2: Abrir arquivo CSV para adicionar dados no final (append)
-    // FA_OPEN_APPEND = abrir para adicionar no final
-    // FA_WRITE = permissão de escrita
+
+    FIL file;
+    FRESULT fr;
+
+    // PASSO 1: Abrir arquivo CSV para adicionar dados no final (append)
     fr = f_open(&file, "dados.csv", FA_OPEN_APPEND | FA_WRITE);
-    if (fr != FR_OK) 
+    if (fr != FR_OK)
     {
         printf("Erro ao abrir arquivo CSV: %s (%d)\n", FRESULT_str(fr), fr);
         return false;
     }
-    
-    // PASSO 3: Escrever nova linha no formato CSV
-    // Formato: ID,DateTime,Permanencia,Alerta,Valor,Tipo
-    // Exemplo: 1,5/23/25 10:00,0:00:35,Perna Dir,95,Abdução
-    f_printf(&file, "%d,%s,%s,%s,%d,%s\n", 
-             next_id,               // ID auto-incrementado
-             datetime_str,          // Data/hora atual
-             permanencia,           // Duração passada como parâmetro
-             alerta,                // Local/tipo passado como parâmetro
-             valor,                 // Valor numérico passado como parâmetro
-             tipo);                 // Tipo de movimento passado como parâmetro
-    
-    // PASSO 4: Fechar arquivo (importante para salvar os dados!)
+
+    // PASSO 2: Escrever nova linha no formato CSV
+    // Formato: Inicio,Fim,Perna,Movimento,AnguloMaximo
+    // Exemplo: 2025-09-07T13:45:30Z,2025-09-07T13:45:33Z,direita,Flexão,92.5
+    f_printf(&file, "%s,%s,%s,%s,%.2f\n",
+        inicio,
+        fim,
+        perna,
+        movimento,
+        angulo_maximo);
+
+    // PASSO 3: Fechar arquivo
     f_close(&file);
+
+    // PASSO 4: Mostrar confirmação no console
+    printf("Registro adicionado: %s, %s, %s, %s, %.2f\n",
+        inicio, fim, perna, movimento, angulo_maximo);
+
+    return true;
+}
+
+// ============================================================================
+// FUNÇÃO: register_movement_with_timestamps()
+// PROPÓSITO: Registra um movimento completo com timestamps automáticos
+// PARÂMETROS: perna - "direita" ou "esquerda"
+//            movimento - tipo de movimento
+//            angulo_maximo - ângulo máximo atingido
+// RETORNO: true se sucesso, false se erro
+// ============================================================================
+
+bool register_movement_with_timestamps(const char* perna, const char* movimento, float angulo_maximo)
+{
+    char inicio[25], fim[25];
     
-    // PASSO 5: Mostrar confirmação no console e incrementar ID para próximo registro
-    printf("Registro %d adicionado: %s, %s, %s, %d, %s\n", 
-           next_id, datetime_str, permanencia, alerta, valor, tipo);
+    // Captura timestamp de início
+    get_current_datetime_iso(inicio, sizeof(inicio));
     
-    next_id++;                      // Incrementa ID para próximo registro
-    return true;                    // Sucesso!
+    // Simula um pequeno delay para o movimento (em uma aplicação real, 
+    // este seria o tempo real de execução do movimento)
+    sleep_ms(100);  // 100ms de delay como exemplo
+    
+    // Captura timestamp de fim
+    get_current_datetime_iso(fim, sizeof(fim));
+    
+    // Registra no CSV
+    return add_csv_record(inicio, fim, perna, movimento, angulo_maximo);
 }
 
 // ============================================================================
@@ -272,3 +281,5 @@ void view_csv_data(void)
     // PASSO 3: Fechar arquivo
     f_close(&file);
 }
+
+

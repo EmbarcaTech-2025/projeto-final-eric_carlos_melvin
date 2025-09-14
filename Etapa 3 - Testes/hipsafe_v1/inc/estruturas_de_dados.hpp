@@ -2,11 +2,7 @@
 #define Estrutura_Dados_HPP_
 
 #include <cstdint>
-
-// Substituto MOCK para i2c_inst_t do Pico SDK
-typedef struct{
-    int mock_id;  // apenas um ID fictício
-} i2c_inst_t;
+#include "hardware/i2c.h"
 
 // STRUCTS:
 
@@ -26,7 +22,7 @@ typedef struct {
 } Alarme;
 
 typedef struct{
-    i2c_inst_t i2c; // I2C instance
+    i2c_inst_t* i2c; // I2C instance
     unsigned int sda_gpio;   // SDA GPIO pin
     unsigned int scl_gpio;   // SCL GPIO pin
     uint8_t addr;   // MPU6050 I2C address (0x68 or 0x69)

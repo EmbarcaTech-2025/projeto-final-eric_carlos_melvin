@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include "pico/stdlib.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Definições dos pinos GPIO conectados aos botões A e B
 #define BUTTON_A 5   // Pino do botão A
 #define BUTTON_B 6   // Pino do botão B
@@ -19,5 +23,9 @@ extern volatile bool button_b_pressed; // true se o botão B foi pressionado
  * associando a função de callback para tratamento do evento.
  */
 void setup_buttons(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

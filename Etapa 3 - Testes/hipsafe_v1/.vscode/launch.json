@@ -46,25 +46,5 @@
                 "load \"${command:raspberry-pi-pico.launchTargetPath}\""
             ]
         },
-        {
-            "name": "Debug bogus HipSafe",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/host_tests",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "build"
-        }
     ]
 }

@@ -4,7 +4,8 @@
 #include <array>
 #include <iostream>
 #include "estruturas_de_dados.hpp"
-#include "bogus.h"
+#include "mpu9250_i2c.h"
+//#include "bogus.h"
 
 // Definições gerais 
 constexpr std::array<int,3> LIMITACOES = {90, 10, 15};  // {flexão, abdução, rotação}
@@ -18,7 +19,7 @@ constexpr std::array<int,3> LIMITACOES = {90, 10, 15};  // {flexão, abdução, 
 // Funções
 static const char* ladoToStr(LadoCorpo l);
 static const char* movToStr(TipoMovimento m);
-Orientacao getPosition(mpu6050_t mpu_list[3]);
+Orientacao getPosition(mpu9250_t mpu_list[3]);
 void dangerCheck(Orientacao orientacao);
 
 #endif
