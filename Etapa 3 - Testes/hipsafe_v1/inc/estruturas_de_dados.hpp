@@ -10,6 +10,10 @@ typedef struct{
 
 // STRUCTS:
 
+/***
+ * Estrutura Orientação: Passa os parâmetros de flexão rotação e abdução
+ * todos floats.
+ */
 typedef struct{
     float flexao;
     float rotacao;
