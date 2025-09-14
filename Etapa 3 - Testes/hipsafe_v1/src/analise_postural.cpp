@@ -50,6 +50,16 @@ static bool isEventOpen(LadoCorpo perna, TipoMovimento perigo) {
  * dentro de uma struct Orientacao
  */
 Orientacao getPosition(mpu6050_t mpu_list[3]) {
+    /*
+        Eric ficou de fazer essa parte do algoritmo
+        Resumindo ficaria algo assim:
+        Utilizando mpu_list[0] e mpu_list[1], desconsidera o mpu_list[2] que seria o da perna esquerda
+        (1) Requisita os dados "brutos" dos dois sensores da lista de sensores com readSensor()
+        (2) Transforma eles em quaternions com sensorToQuaternion()
+        (3) Descobre o quaternion relativo entre eles com relativeQuaternion()
+        (4) Descobre os ângulos relativo aos movimento (Orientacao) 
+        (5) Retorna esta Orientação   
+    */
     Orientacao orientacao;
     orientacao.flexao = 75.3;
     orientacao.rotacao = 10.1;
