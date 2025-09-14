@@ -88,6 +88,7 @@ void dangerCheck(Orientacao orientacao) {
                                 Se não -> Desliga o alarme, e desliga o 'mute'
 
     */
+    // Abaixo, tem que apagar... é só 'bogus' (mock)
     if (orientacao.flexao > LIMITACOES[static_cast<int>(TipoMovimento::FLEXAO)]) {
         printf("  flexao > 90 graus \n");
     }
