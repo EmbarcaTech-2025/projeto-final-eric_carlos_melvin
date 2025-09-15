@@ -1,0 +1,9 @@
+[submodule "Etapa 4/projeto_final/lib/no-OS-FatFS-SD-SPI-RPi-Pico"]
+	path = Etapa 4/projeto_final/lib/no-OS-FatFS-SD-SPI-RPi-Pico
+	url = https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico.git
+[submodule "Etapa 4/projeto_final/drivers/sdcard/no-OS-FatFS-SD-SPI-RPi-Pico"]
+	path = Etapa 4/projeto_final/drivers/sdcard/no-OS-FatFS-SD-SPI-RPi-Pico
+	url = https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico.git
+[submodule "Etapa 4/projeto_final/drivers/sdcard/lib/no-OS-FatFS-SD-SPI-RPi-Pico"]
+	path = Etapa 4/projeto_final/drivers/sdcard/lib/no-OS-FatFS-SD-SPI-RPi-Pico
+	url = https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico.git
