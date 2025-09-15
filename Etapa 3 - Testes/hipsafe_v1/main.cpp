@@ -93,9 +93,11 @@ int main()
     printf("Inicializando buzzer...\n");
     buzzer_init();
 
+    
     printf("Inicializando RTC DS3231...\n");
     rtc_ds3231_init();  // Usa a função de rtc_utils.c que configura automaticamente
     
+
     // Inicializar SD Card
     //printf("Inicializando SD Card...\n");
     //sd_card_init();
@@ -105,8 +107,9 @@ int main()
     for(auto& mpu : mpu_list) 
     {
         mpu9250_init(&mpu, &config);
-        sleep_ms(1000);
+       sleep_ms(1000);
     }
+
     printf("MPU9250s configurados: ±2g, ±250°/s\n");
     
     printf("Sistema inicializado com sucesso!\n");
