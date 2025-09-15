@@ -92,13 +92,6 @@ void get_current_datetime_iso(char* buffer, size_t buffer_size)
 
 bool init_sd_card(void)
 {
-    printf("Inicializando SD card...\n");
-
-    // PASSO 1: Inicializar o RTC DS3231
-    printf("Inicializando RTC DS3231...\n");
-    rtc_ds3231_init();  // Usa a função de rtc_utils.c que configura automaticamente
-    printf("RTC DS3231 inicializado\n");
-
     // PASSO 2: Inicializar o driver do cartão SD
     if (!sd_init_driver())
     {

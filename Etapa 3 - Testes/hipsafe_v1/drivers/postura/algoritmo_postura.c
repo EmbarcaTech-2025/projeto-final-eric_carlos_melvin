@@ -8,7 +8,7 @@
 
 // --- Helpers para quaternions ---
 // Normaliza um quaternion (importante para garantir inverso simples = conjugado)
-Quaternion quaternion_normalize(Quaternion q)
+static Quaternion quaternion_normalize(Quaternion q)
 {
     float norm = sqrtf(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z);
     if (norm > 0.0f) {

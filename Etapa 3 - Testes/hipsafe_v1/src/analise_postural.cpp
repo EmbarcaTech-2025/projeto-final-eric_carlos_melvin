@@ -17,7 +17,7 @@ static float deg_to_rad(float degrees) {
 
 // Includes para integração com outros módulos
 extern "C" {
-    // #include "SDCard.h"  // Comentado - não usando SDCard por enquanto
+    #include "SDCard.h"  // SDCard habilitado para salvamento de dados
     #include "buzzer.h"
     #include "algoritmo_postura.h"
     #include "MadgwickAHRS.h"
@@ -30,7 +30,7 @@ static Alarme alarme_global = {false, false};
 static const char* ladoToStr(LadoCorpo l) {
     switch(l){
         case LadoCorpo::DIREITO:  return "DIREITO";
-        case LadoCorpo::ESQUERDO: return "ESQUERDO";
+        case LadoCorpo::ESQUERDO:  return "ESQUERDO";
         default: return "??";
     }
 }
@@ -94,15 +94,8 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
         Utiliza mpu_list[0] (tronco) e mpu_list[1] (coxa/perna)
         Não há terceiro sensor nesta implementação
     */
-
-    /*
-        Implementação do algoritmo baseado em quaternions:
-        (1) Requisita os dados "brutos" dos dois sensores da lista de sensores
-        (2) Transforma eles em quaternions com o algoritmo de Madgwick AHRS
-        (3) Descobre o quaternion relativo entre eles.
-    */
     
-    Orientacao orientacao_quat = {0};
+    Orientacao orientacao = {0};
     
     // (1) Leitura dos dados brutos dos sensores
     mpu9250_data_t data_tronco, data_coxa;
@@ -113,8 +106,8 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
     // Lê dados do sensor da coxa (mpu_list[1])
     mpu9250_read_data(&mpu_list[1], &data_coxa);
     
-
     // (2) Transformação em quaternions usando algoritmo Madgwick
+    
     // Estruturas AHRS para os sensores (locais para esta função)
     static AHRS_data_t imu_tronco, imu_coxa;
     static bool initialized = false;
@@ -167,34 +160,27 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
         .z = imu_coxa.orientation.q3 
     };
     
-    // * Metodo 2
-    // Normalização
-    q_tronco = quaternion_normalize(q_tronco);
-    q_coxa   = quaternion_normalize(q_coxa);
-
-    // q_leg_t_ref = conj(tronco) * coxa
-    Quaternion q_conj = quaternion_conjugate(q_tronco);
-    Quaternion q_leg_t_ref = quaternion_multiply(q_conj, q_coxa);
-    q_leg_t_ref = quaternion_normalize(q_leg_t_ref);
-
-    // Partes do quaternio
-    double qw = q_leg_t_ref.w;
-    double v_leg_t_ref[3] = {q_leg_t_ref.x, q_leg_t_ref.y, q_leg_t_ref.z};
-
-    // Ângulos (como no MATLAB)
-    double theta_flexion   = 2.0 * atan2( v_leg_t_ref[0], qw);
-    double theta_abduction = 2.0 * atan2( v_leg_t_ref[2], qw);
-    double theta_rotation  = 2.0 * atan2( v_leg_t_ref[1], qw);
-
-    orientacao_quat.flexao   = (180.0 / M_PI)*(theta_flexion);
-    orientacao_quat.abducao  = (180.0 / M_PI)*(theta_abduction);
-    orientacao_quat.rotacao  = (180.0 / M_PI)*(theta_rotation);
-
+    // (3) Cálculo do quaternion relativo (tronco -> coxa)
+    Quaternion q_rel = relative_quaternion(q_tronco, q_coxa);
+    
+    // (4) Extração dos ângulos relativos aos movimentos
+    float flexao_rad, aducao_rad, rotacao_rad;
+    bool rotacao_interna_30, flexao_maior_90, cruzamento_pernas;
+    
+    hip_angles(q_rel, &flexao_rad, &aducao_rad, &rotacao_rad, 
+               &rotacao_interna_30, &flexao_maior_90, &cruzamento_pernas);
+    
+    // (5) Conversão para graus e preenchimento da estrutura de retorno
+    const float RAD2DEG = 180.0f / M_PI_F;
+    orientacao.flexao = -flexao_rad * RAD2DEG;
+    orientacao.rotacao = rotacao_rad * RAD2DEG;
+    orientacao.abducao = aducao_rad * RAD2DEG;  // Note: abducao = aducao
+    
     // Imprime os ângulos continuamente
-    printf("Ângulos (2): Flexão=%.2f° | Adução=%.2f° | Rotação=%.2f° \n", 
-           orientacao_quat.flexao, orientacao_quat.abducao, orientacao_quat.rotacao);
-
-    return orientacao_quat;
+    printf("Ângulos: Flexão=%.2f° | Adução=%.2f° | Rotação=%.2f°\n", 
+           orientacao.flexao, orientacao.abducao, orientacao.rotacao);
+    
+    return orientacao;
 }
 
 /***
@@ -202,22 +188,12 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
  * @param evento Ponteiro para o evento a ser salvo
  */
 static void salvarEventoSDCard(const std::unique_ptr<Evento>& evento) {
-    // FUNCIONALIDADE SDCARD COMENTADA - não usando por enquanto
-    /*
-    // Converte timestamps para formato ISO
-    auto inicio_time_t = std::chrono::system_clock::to_time_t(evento->getInicio());
-    auto fim_time_t = std::chrono::system_clock::to_time_t(evento->getFim());
-    
-    char inicio_str[25], fim_str[25];
-    std::strftime(inicio_str, sizeof(inicio_str), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&inicio_time_t));
-    std::strftime(fim_str, sizeof(fim_str), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&fim_time_t));
-    
     // Converte enums para strings
     const char* lado_str = (evento->getLado() == LadoCorpo::DIREITO) ? "direita" : "esquerda";
     const char* movimento_str = movToStr(evento->getPerigo());
     
-    // Salva no SDCard
-    bool sucesso = add_csv_record(inicio_str, fim_str, lado_str, movimento_str, evento->getMaxAngulo());
+    // Usa a função register_movement_with_timestamps que já gera timestamps automáticos
+    bool sucesso = register_movement_with_timestamps(lado_str, movimento_str, evento->getMaxAngulo());
     
     if (sucesso) {
         printf("Evento salvo no SDCard: %s, %s, %.2f graus, duração: %lld ms\n", 
@@ -225,14 +201,6 @@ static void salvarEventoSDCard(const std::unique_ptr<Evento>& evento) {
     } else {
         printf("Erro ao salvar evento no SDCard\n");
     }
-    */
-    
-    // Por enquanto, apenas mostra no console
-    const char* lado_str = (evento->getLado() == LadoCorpo::DIREITO) ? "direita" : "esquerda";
-    const char* movimento_str = movToStr(evento->getPerigo());
-    
-    printf("Evento finalizado (SDCard desabilitado): %s, %s, %.2f graus, duração: %lld ms\n", 
-           lado_str, movimento_str, evento->getMaxAngulo(), evento->getDuracaoMS());
 }
 
 /***

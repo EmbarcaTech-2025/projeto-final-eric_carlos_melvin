@@ -39,8 +39,6 @@ static bool rtc_is_connected(void)
  */
 void rtc_ds3231_init(void) 
 {
-    stdio_init_all();
-    sleep_ms(2000);
     i2c_init(I2C_PORT, I2C_BAUDRATE);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);

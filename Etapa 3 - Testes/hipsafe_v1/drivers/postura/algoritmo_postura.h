@@ -24,8 +24,6 @@ Quaternion quaternion_conjugate(Quaternion q);
 // Calcula o quaternion relativo (tronco -> coxa)
 Quaternion relative_quaternion(Quaternion q_tronco, Quaternion q_coxa);
 
-Quaternion quaternion_normalize(Quaternion q);
-
 // Converte quaternion para ângulos de Euler usando sequência XYZ (anatômica corrigida)
 // X: flexão para frente(+)/extensão para trás(-), Y: rotação interna/externa, Z: adução/abdução
 void quaternion_to_hip_angles(Quaternion q, float *flexao, float *aducao, float *rotacao);
