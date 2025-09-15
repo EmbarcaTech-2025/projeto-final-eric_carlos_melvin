@@ -20,4 +20,10 @@ constexpr std::array<int,3> LIMITACOES = {90, 60, 45};  // {flexão, abdução, 
 Orientacao getPosition(mpu9250_t mpu_list[2]);  // Corrigido: só usa 2 elementos
 void dangerCheck(Orientacao orientacao);
 
+// Funções para controle do alarme
+void silenciar_alarme(void);
+void desilenciar_alarme(void);
+bool alarme_esta_ligado(void);
+bool alarme_esta_silenciado(void);
+
 #endif

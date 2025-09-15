@@ -25,11 +25,19 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
-#include "button.h"
-#include "mpu9250_i2c.h"
-#include "SDCard.h"
-#include "buzzer.h"
-#include "rtc_utils.h"  // Para usar as funções do RTC DS3231
+
+// Includes para componentes C
+extern "C" {
+    #include "button.h"
+    #include "mpu9250_i2c.h"
+    #include "SDCard.h"
+    #include "buzzer.h"
+    #include "rtc_utils.h"  // Para usar as funções do RTC DS3231
+    #include "sensor_watchdog.h"  // Sistema de watchdog dos sensores
+}
+
+// Declarações de variáveis externas para botões
+extern volatile bool button_a_pressed;
 
  // I2C addresses for MPU6050
 #define MPU6050_ADDR_0 0x68 // Default I2C address
@@ -117,15 +125,63 @@ int main()
     // ***************************************************************
 
     // AQUI PODERIAM ENTRAR CÓDIGOS DE AJUSTES DE PARÂMETROS, WATCH DOG DENTRE OUTROS.
+    
+    // Inicialização do sistema de watchdog
+    printf("\n=== CONFIGURAÇÃO DO SISTEMA DE WATCHDOG ===\n");
+    printf("Aguardando estabilização dos sensores antes de ativar watchdog...\n");
+    
+    // Aguarda alguns segundos para estabilização dos sensores
+    for (int i = 5; i > 0; i--) {
+        printf("Aguardando %d segundos...\n", i);
+        sleep_ms(1000);
+    }
+    
+    // Inicializa o sistema de watchdog
+    printf("Inicializando sistema de watchdog...\n");
+    sensor_watchdog_init();
+    
+    // Aguarda mais um pouco antes de ativar o watchdog
+    printf("Aguardando mais 3 segundos antes de ativar watchdog...\n");
+    for (int i = 3; i > 0; i--) {
+        printf("Ativando watchdog em %d segundos...\n", i);
+        sleep_ms(1000);
+    }
+    
+    // Habilita o watchdog
+    sensor_watchdog_enable();
+    printf("=== WATCHDOG ATIVADO - Sistema monitorado ===\n\n");
 
     // INÍCIO DO PROGRAMA PROPRIAMENTE DITO:
     while (true) 
     {
+        // VERIFICA SE O BOTÃO A FOI PRESSIONADO
+        if (button_a_pressed) {
+            printf("Botão A pressionado\n");
+            
+            // Se o alarme está ligado
+            if (alarme_esta_ligado()) {
+                if (alarme_esta_silenciado()) {
+                    printf("  -> Desilenciando alarme\n");
+                    desilenciar_alarme();
+                } else {
+                    printf("  -> Silenciando alarme\n");
+                    silenciar_alarme();
+                }
+            } else {
+                printf("  -> Alarme não está ativo no momento\n");
+            }
+            
+            button_a_pressed = false; // Reset da flag
+        }
+
         // REQUISITA POSIÇÕES
         Orientacao orientacao = getPosition(mpu_list);
 
         // CHECA E GRAVA POSIÇÃO PERIGOSA
         dangerCheck(orientacao);
+        
+        // ATUALIZA O WATCHDOG PARA VERIFICAR TRAVAMENTOS
+        sensor_watchdog_update();
     }
 
     std::cout << "Nunca alcança essa linha\n";

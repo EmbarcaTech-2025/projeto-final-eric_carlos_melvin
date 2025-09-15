@@ -51,6 +51,7 @@ add_executable(projeto_final
     drivers/sdcard/hw_config.c
     drivers/rtc/ds3231.c
     drivers/rtc/rtc_utils.c
+    drivers/watchdog/sensor_watchdog.c
 )
 
 pico_set_program_name(projeto_final "projeto_final")
@@ -75,6 +76,7 @@ target_include_directories(projeto_final PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/drivers/postura
         ${CMAKE_CURRENT_LIST_DIR}/drivers/sdcard
         ${CMAKE_CURRENT_LIST_DIR}/drivers/rtc
+        ${CMAKE_CURRENT_LIST_DIR}/drivers/watchdog
         ${CMAKE_CURRENT_LIST_DIR}/evento
 )
 
@@ -87,6 +89,7 @@ target_link_libraries(projeto_final
         hardware_pwm
         hardware_timer
         hardware_rtc
+        hardware_watchdog
         pico_multicore
         pico_sync
         pico_time

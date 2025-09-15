@@ -18,6 +18,7 @@ static float deg_to_rad(float degrees) {
 // Includes para integração com outros módulos
 extern "C" {
     #include "SDCard.h"  // SDCard habilitado para salvamento de dados
+    #include "sensor_watchdog.h"  // Sistema de watchdog dos sensores
     #include "buzzer.h"
     #include "algoritmo_postura.h"
     #include "MadgwickAHRS.h"
@@ -97,7 +98,20 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
     
     Orientacao orientacao = {0};
     
-    // (1) Leitura dos dados brutos dos sensores
+    // (1) Leitura dos dados brutos dos sensores PRIMEIRO (para watchdog)
+    mpu9250_raw_data_t raw_data_tronco, raw_data_coxa;
+    
+    // Lê dados brutos do sensor do tronco (mpu_list[0])
+    mpu9250_read_raw(&mpu_list[0], &raw_data_tronco);
+    
+    // Lê dados brutos do sensor da coxa (mpu_list[1])  
+    mpu9250_read_raw(&mpu_list[1], &raw_data_coxa);
+    
+    // Alimenta o watchdog com dados brutos para detecção de travamento
+    sensor_watchdog_feed(mpu_list[0].id, &raw_data_tronco);
+    sensor_watchdog_feed(mpu_list[1].id, &raw_data_coxa);
+    
+    // Agora lê dados processados para os cálculos
     mpu9250_data_t data_tronco, data_coxa;
     
     // Lê dados do sensor do tronco (mpu_list[0])
@@ -211,8 +225,13 @@ static void gerenciarAlarme(bool ligar) {
     if (ligar && !alarme_global.ligado) {
         alarme_global.ligado = true;
         alarme_global.silenciado = false;
-        buzzer_alarm_on(); // Liga o buzzer
+        if (!alarme_global.silenciado) {
+            buzzer_alarm_on(); // Liga o buzzer apenas se não estiver silenciado
+        }
         printf("ALARME LIGADO - Postura perigosa detectada!\n");
+    } else if (ligar && alarme_global.ligado && !alarme_global.silenciado) {
+        // Alarme já está ligado, mas verifica se deve tocar (caso tenha sido desilenciado)
+        buzzer_alarm_on();
     } else if (!ligar && alarme_global.ligado) {
         // Verifica se ainda há eventos ativos
         if (eventos_ativos.empty()) {
@@ -221,6 +240,11 @@ static void gerenciarAlarme(bool ligar) {
             buzzer_alarm_off(); // Desliga o buzzer
             printf("ALARME DESLIGADO - Postura normalizada\n");
         }
+    }
+    
+    // Se o alarme está ligado mas foi silenciado, não toca o buzzer
+    if (alarme_global.ligado && alarme_global.silenciado) {
+        buzzer_alarm_off();
     }
 }
 
@@ -323,3 +347,26 @@ void dangerCheck(Orientacao orientacao) {
         }
     }
 };
+
+// Funções para controle do alarme
+void silenciar_alarme(void) {
+    alarme_global.silenciado = true;
+    buzzer_alarm_off();
+    printf("Alarme silenciado pelo usuário\n");
+}
+
+void desilenciar_alarme(void) {
+    alarme_global.silenciado = false;
+    if (alarme_global.ligado) {
+        buzzer_alarm_on();
+        printf("Alarme desilenciado - buzzer religado\n");
+    }
+}
+
+bool alarme_esta_ligado(void) {
+    return alarme_global.ligado;
+}
+
+bool alarme_esta_silenciado(void) {
+    return alarme_global.silenciado;
+}
