@@ -8,7 +8,7 @@
 //#include "bogus.h"
 
 // Definições gerais 
-constexpr std::array<int,3> LIMITACOES = {90, 10, 15};  // {flexão, abdução, rotação}
+constexpr std::array<int,3> LIMITACOES = {90, 60, 45};  // {flexão, abdução, rotação}
 
 // #define  INIT_VAL_ZERO                       (0U)           
 // #define  INIT_VAL_ONE                        (1U)           
@@ -17,9 +17,7 @@ constexpr std::array<int,3> LIMITACOES = {90, 10, 15};  // {flexão, abdução, 
 
 
 // Funções
-static const char* ladoToStr(LadoCorpo l);
-static const char* movToStr(TipoMovimento m);
-Orientacao getPosition(mpu9250_t mpu_list[3]);
+Orientacao getPosition(mpu9250_t mpu_list[2]);  // Corrigido: só usa 2 elementos
 void dangerCheck(Orientacao orientacao);
 
 #endif

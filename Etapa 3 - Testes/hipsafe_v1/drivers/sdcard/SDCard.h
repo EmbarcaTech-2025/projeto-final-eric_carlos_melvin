@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "../rtc/rtc_utils.h"  // Para usar as funções do RTC DS3231
+#include "rtc_utils.h"  // Para usar as funções do RTC DS3231
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,7 +40,7 @@ typedef struct {
  * 
  * @return true se a inicialização foi bem-sucedida, false caso contrário
  */
-bool sd_card_init(void);
+bool init_sd_card(void);
 
 /**
  * Adiciona uma nova linha de dados no arquivo CSV.
@@ -82,8 +82,19 @@ void get_current_datetime_iso(char* buffer, size_t buffer_size);
  * @return true se o registro foi adicionado com sucesso, false caso contrário
  */
 bool register_movement_with_timestamps(const char* perna, const char* movimento, float angulo_maximo);
+
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * Função de conveniência que inicializa o sistema completo.
+ * Chama init_sd_card() que por sua vez inicializa o RTC DS3231 e o sistema de SD Card.
+ * 
+ * @return true se a inicialização foi bem-sucedida, false caso contrário
+ */
+static inline bool sd_card_init(void) {
+    return init_sd_card();
+}
 
 #endif

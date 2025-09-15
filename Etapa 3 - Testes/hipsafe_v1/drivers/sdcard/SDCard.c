@@ -16,7 +16,7 @@
 #include "sd_card.h"        // Driver do cartão SD
 
 // Biblioteca para RTC DS3231 
-#include "../rtc/rtc_utils.h" // Utilitários para RTC DS3231
+#include "rtc_utils.h"      // Utilitários para RTC DS3231 (ajustado para drivers/rtc)
 
 // ============================================================================
 // DEFINIÇÕES DE HARDWARE - Configuração dos pinos SPI para o cartão SD
@@ -52,7 +52,7 @@ static bool sd_mounted = false; // Flag indicando se o SD está montado e pronto
 // PROTÓTIPOS DAS FUNÇÕES - Declaração das funções antes de serem implementadas
 // ============================================================================
 
-bool sd_card_init(void);    // Inicializa o cartão SD e prepara o sistema de arquivos
+bool init_sd_card(void);    // Inicializa o cartão SD e prepara o sistema de arquivos
 bool add_csv_record(const char* inicio, const char* fim, const char* perna, const char* movimento, float angulo_maximo);  // Adiciona registro no CSV
 void view_csv_data(void);   // Lê e exibe todos os dados do arquivo CSV
 void get_current_datetime_iso(char* buffer, size_t buffer_size);  // Obtém data/hora atual formatada ISO 8601
@@ -65,18 +65,18 @@ void get_current_datetime_iso(char* buffer, size_t buffer_size);  // Obtém data
 void get_current_datetime_iso(char* buffer, size_t buffer_size)
 {
     ds3231_data_t dt;
-    
+
     // Lê a data/hora atual do RTC DS3231
-    if (rtc_update_datetime(&dt)) 
+    if (rtc_update_datetime(&dt))
     {
         // Calcula o ano completo (considerando century bit)
         int year_full = (dt.century ? 2000 : 1900) + dt.year;
-        
+
         // Formato: "YYYY-MM-DDTHH:MM:SSZ"
         snprintf(buffer, buffer_size, "%04d-%02d-%02dT%02d:%02d:%02dZ",
             year_full, dt.month, dt.date, dt.hours, dt.minutes, dt.seconds);
-    } 
-    else 
+    }
+    else
     {
         // Fallback caso não consiga ler do RTC
         snprintf(buffer, buffer_size, "2025-01-01T00:00:00Z");
@@ -85,87 +85,82 @@ void get_current_datetime_iso(char* buffer, size_t buffer_size)
 }
 
 // ============================================================================
-// FUNÇÃO: sd_card_init()
+// FUNÇÃO: init_sd_card()
 // PROPÓSITO: Inicializa o cartão SD e prepara o sistema de arquivos
 // RETORNO: true se sucesso, false se erro
 // ============================================================================
 
-bool sd_card_init(void) 
+bool init_sd_card(void)
 {
     printf("Inicializando SD card...\n");
-    
+
     // PASSO 1: Inicializar o RTC DS3231
     printf("Inicializando RTC DS3231...\n");
     rtc_ds3231_init();  // Usa a função de rtc_utils.c que configura automaticamente
     printf("RTC DS3231 inicializado\n");
-    
+
     // PASSO 2: Inicializar o driver do cartão SD
-    printf("Tentando inicializar driver SD...\n");
-    if (!sd_init_driver()) 
+    if (!sd_init_driver())
     {
         printf("Erro: Falha ao inicializar driver SD\n");
         return false;               // Retorna erro se driver falhou
     }
-    printf("Driver SD inicializado com sucesso\n");
     
     // PASSO 3: Obter referência do cartão SD configurado (primeiro cartão = índice 0)
     sd_card_t* sd_card = sd_get_by_num(0);
-    if (!sd_card) 
+    if (!sd_card)
     {
         printf("Erro: Não foi possível obter referência do cartão SD\n");
         return false;               // Retorna erro se não encontrou o cartão
     }
-    
+
     // PASSO 4: Montar o sistema de arquivos FAT do cartão SD
     // "0:" = nome do drive, 1 = montar imediatamente
     FRESULT fr = f_mount(&fs, "0:", 1);
-    if (fr != FR_OK) 
+    if (fr != FR_OK)
     {
         printf("Erro ao montar SD card: %s (%d)\n", FRESULT_str(fr), fr);
         return false;               // Retorna erro se montagem falhou
     }
-    
+
     sd_mounted = true;              // Marca que SD está pronto para uso
     printf("SD card montado com sucesso!\n");
-    
+
     // PASSO 5: Verificar se arquivo CSV já existe, se não, criar com cabeçalho
     FIL file;                       // Estrutura para manipular arquivo
     fr = f_open(&file, "dados.csv", FA_READ);  // Tenta abrir arquivo para leitura
-    
+
     if (fr != FR_OK) 
     {
         // Arquivo não existe, vamos criar um novo com cabeçalho
         fr = f_open(&file, "dados.csv", FA_CREATE_NEW | FA_WRITE);
-        if (fr == FR_OK) 
+        if (fr == FR_OK)
         {
             // Escreve o cabeçalho do CSV (nomes das colunas)
             f_printf(&file, "Inicio,Fim,Perna,Movimento,AnguloMaximo\n");
             f_close(&file);         // Fecha o arquivo
             printf("Arquivo CSV criado com cabeçalho\n");
-        } 
-        else 
+        }
+        else
         {
             printf("Erro ao criar arquivo CSV: %s (%d)\n", FRESULT_str(fr), fr);
             return false;           // Retorna erro se não conseguiu criar arquivo
         }
-    } 
-    else 
+    }
+    else
     {
         // Arquivo já existe, apenas fecha
         f_close(&file);
         printf("Arquivo CSV já existe\n");
     }
-    
+
     return true;                    // Sucesso! SD card está pronto
 }
 
 // ============================================================================
 // FUNÇÃO: add_csv_record()
 // PROPÓSITO: Adiciona uma nova linha de dados no arquivo CSV
-// PARÂMETROS: permanencia - duração ("0:00:35")
-//            alerta - local/tipo ("Perna Dir")  
-//            valor - valor numérico do sensor
-//            tipo - tipo de movimento ("Abdução")
+// PARÂMETROS: inicio, fim, perna, movimento, angulo_maximo
 // RETORNO: true se sucesso, false se erro
 // ============================================================================
 
@@ -221,17 +216,17 @@ bool add_csv_record(const char* inicio, const char* fim, const char* perna, cons
 bool register_movement_with_timestamps(const char* perna, const char* movimento, float angulo_maximo)
 {
     char inicio[25], fim[25];
-    
+
     // Captura timestamp de início
     get_current_datetime_iso(inicio, sizeof(inicio));
-    
-    // Simula um pequeno delay para o movimento (em uma aplicação real, 
+
+    // Simula um pequeno delay para o movimento (em uma aplicação real,
     // este seria o tempo real de execução do movimento)
     sleep_ms(100);  // 100ms de delay como exemplo
-    
+
     // Captura timestamp de fim
     get_current_datetime_iso(fim, sizeof(fim));
-    
+
     // Registra no CSV
     return add_csv_record(inicio, fim, perna, movimento, angulo_maximo);
 }
@@ -241,19 +236,19 @@ bool register_movement_with_timestamps(const char* perna, const char* movimento,
 // PROPÓSITO: Lê todo o arquivo CSV e exibe no console
 // ============================================================================
 
-void view_csv_data(void) 
+void view_csv_data(void)
 {
     // VERIFICAÇÃO: SD card deve estar montado
-    if (!sd_mounted) 
+    if (!sd_mounted)
     {
         printf("Erro: SD card não está montado\n");
         return;
     }
-    
+
     FIL file;                       // Estrutura para manipular arquivo
     FRESULT fr;                     // Resultado das operações
     char line[256];                 // Buffer para armazenar cada linha lida (máx 256 chars)
-    
+
     // PASSO 1: Abrir arquivo CSV para leitura
     fr = f_open(&file, "dados.csv", FA_READ);
     if (fr != FR_OK) 
@@ -261,25 +256,23 @@ void view_csv_data(void)
         printf("Erro ao abrir arquivo CSV: %s (%d)\n", FRESULT_str(fr), fr);
         return;
     }
-    
+
     printf("\n=== DADOS ARMAZENADOS NO CSV ===\n");
-    
+
     // PASSO 2: Ler arquivo linha por linha e exibir
     while (f_gets(line, sizeof(line), &file)) // Lê uma linha por vez
-    {    
+    {
         // Remover caractere de quebra de linha (\n) do final da string
         size_t len = strlen(line);                  // Calcula tamanho da string
         if (len > 0 && line[len-1] == '\n')         // Se último char é \n
-        {       
+        {
             line[len-1] = '\0';                     // Substitui por terminador \0
         }
         printf("%s\n", line);                       // Exibe a linha no console
     }
-    
+
     printf("=== FIM DOS DADOS ===\n\n");
-    
+
     // PASSO 3: Fechar arquivo
     f_close(&file);
 }
-
-

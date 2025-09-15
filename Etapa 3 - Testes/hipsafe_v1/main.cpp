@@ -29,6 +29,7 @@
 #include "mpu9250_i2c.h"
 #include "SDCard.h"
 #include "buzzer.h"
+#include "rtc_utils.h"  // Para usar as funções do RTC DS3231
 
  // I2C addresses for MPU6050
 #define MPU6050_ADDR_0 0x68 // Default I2C address
@@ -83,6 +84,21 @@ int main()
     };
 
     mpu9250_t mpu_list[] = {mpu_0, mpu_1};
+    
+    // Inicializar botões
+    printf("Inicializando botões...\n");
+    setup_buttons();
+    
+    // Inicializar buzzer
+    printf("Inicializando buzzer...\n");
+    buzzer_init();
+
+    printf("Inicializando RTC DS3231...\n");
+    rtc_ds3231_init();  // Usa a função de rtc_utils.c que configura automaticamente
+    
+    // Inicializar SD Card
+    //printf("Inicializando SD Card...\n");
+    //sd_card_init();
 
     // Inicializar I2C para os MPUs
     printf("Configurando cada sensor MPU9250...\n");
@@ -92,18 +108,6 @@ int main()
         sleep_ms(1000);
     }
     printf("MPU9250s configurados: ±2g, ±250°/s\n");
-    
-    // Inicializar botões
-    printf("Inicializando botões...\n");
-    setup_buttons();
-    
-    // Inicializar buzzer
-    printf("Inicializando buzzer...\n");
-    buzzer_init();
-    
-    // Inicializar SD Card
-    printf("Inicializando SD Card...\n");
-    sd_card_init();
     
     printf("Sistema inicializado com sucesso!\n");
     printf("Configuração: Taxa de amostragem 100Hz (período = 10ms)\n");

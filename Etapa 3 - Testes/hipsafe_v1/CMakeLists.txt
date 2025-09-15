@@ -46,6 +46,7 @@ add_executable(projeto_final
     drivers/buzzer/buzzer.c
     drivers/mpu9250/mpu9250_i2c.c
     drivers/madgwick/MadgwickAHRS.c
+    drivers/postura/algoritmo_postura.c
     drivers/sdcard/SDCard.c
     drivers/sdcard/hw_config.c
     drivers/rtc/ds3231.c
@@ -71,6 +72,7 @@ target_include_directories(projeto_final PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/drivers/buzzer
         ${CMAKE_CURRENT_LIST_DIR}/drivers/mpu9250
         ${CMAKE_CURRENT_LIST_DIR}/drivers/madgwick
+        ${CMAKE_CURRENT_LIST_DIR}/drivers/postura
         ${CMAKE_CURRENT_LIST_DIR}/drivers/sdcard
         ${CMAKE_CURRENT_LIST_DIR}/drivers/rtc
         ${CMAKE_CURRENT_LIST_DIR}/evento
@@ -79,10 +81,12 @@ target_include_directories(projeto_final PRIVATE
 # Add any user requested libraries
 target_link_libraries(projeto_final 
         hardware_spi
+        hardware_dma
         hardware_i2c
         hardware_gpio
         hardware_pwm
         hardware_timer
+        hardware_rtc
         pico_multicore
         pico_sync
         pico_time
