@@ -4,6 +4,7 @@
 #include <memory>
 #include <ctime>
 #include <cmath>
+#include "pico/time.h"  // Para funções de tempo do Pico SDK
 
 // Definições de constantes matemáticas
 #ifndef M_PI_F
@@ -27,6 +28,11 @@ extern "C" {
 // Variáveis globais para gerenciamento de eventos
 static std::vector<std::unique_ptr<Evento>> eventos_ativos;
 static Alarme alarme_global = {false, false};
+
+// Variáveis para controle do período de estabilização
+static bool sistema_inicializado = false;
+static uint32_t tempo_inicio_ms = 0;
+static const uint32_t TEMPO_ESTABILIZACAO_MS = 5000; // 5 segundos para estabilização
 
 static const char* ladoToStr(LadoCorpo l) {
     switch(l){
@@ -194,6 +200,13 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
     printf("Ângulos: Flexão=%.2f° | Adução=%.2f° | Rotação=%.2f°\n", 
            orientacao.flexao, orientacao.abducao, orientacao.rotacao);
     
+    // Inicializa o controle de tempo na primeira chamada
+    if (!sistema_inicializado) {
+        tempo_inicio_ms = to_ms_since_boot(get_absolute_time());
+        sistema_inicializado = true;
+        printf("Sistema iniciado - período de estabilização de %d segundos\n", TEMPO_ESTABILIZACAO_MS / 1000);
+    }
+    
     return orientacao;
 }
 
@@ -255,6 +268,26 @@ static void gerenciarAlarme(bool ligar) {
  * @return void. 
  */
 void dangerCheck(Orientacao orientacao) {
+    // Verifica se ainda está no período de estabilização
+    if (sistema_inicializado) {
+        uint32_t tempo_atual_ms = to_ms_since_boot(get_absolute_time());
+        uint32_t tempo_decorrido_ms = tempo_atual_ms - tempo_inicio_ms;
+        
+        if (tempo_decorrido_ms < TEMPO_ESTABILIZACAO_MS) {
+            // Ainda está no período de estabilização
+            uint32_t tempo_restante_ms = TEMPO_ESTABILIZACAO_MS - tempo_decorrido_ms;
+            printf("Estabilizando sensores... %d.%d segundos restantes\n", 
+                   tempo_restante_ms / 1000, (tempo_restante_ms % 1000) / 100);
+            return; // Não executa verificação de perigo
+        } else if (tempo_decorrido_ms == TEMPO_ESTABILIZACAO_MS || 
+                  (tempo_decorrido_ms > TEMPO_ESTABILIZACAO_MS && 
+                   tempo_decorrido_ms < TEMPO_ESTABILIZACAO_MS + 1000)) {
+            // Primeira vez que sai do período de estabilização
+            printf("Período de estabilização concluído - sistema ativo!\n");
+            buzzer_beep(); // Beep para indicar que o sistema está ativo
+        }
+    }
+    
     // Array de tipos de movimento para verificar (ignoramos NORMAL)
     TipoMovimento tipos_movimento[] = {TipoMovimento::FLEXAO, TipoMovimento::ABDUCAO, TipoMovimento::ROTACAO};
     
