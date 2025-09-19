@@ -53,6 +53,7 @@ Este projeto foi desenvolvido em **4 etapas principais**, cada uma documentada e
   - `📁 Esquemas/` - Diagramas técnicos e arquitetura
   - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando
 
+[Projeto Final] (./Etapa 4/projeto_final/)
 ---
 
 ## 🚀 Quick Start
