@@ -155,6 +155,6 @@ Agradecemos ao **Programa EmbarcaTech 2025** pela oportunidade de desenvolviment
 ![EmbarcaTech](https://img.shields.io/badge/EmbarcaTech-2025-blue?style=for-the-badge)
 ![Raspberry Pi Pico](https://img.shields.io/badge/Powered%20by-Raspberry%20Pi%20Pico-red?style=for-the-badge&logo=raspberry-pi)
 
-**HipSafe - Inovação em Reabilitação através de Tecnologia Embarcada**
+**HipSafe – Projeto Final | Grupo 4 | Residência Tecnológica em Sistemas Embarcados – 2025 | Campinas**
 
 </div>
