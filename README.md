@@ -19,7 +19,7 @@ Desenvolver uma solução tecnológica que melhore a segurança e eficácia do p
 - 🎮 **Interface intuitiva** de controle
 - 💾 **Armazenamento seguro** de dados com timestamps
 
-### 👥 Equipe de Desenvolvimento
+### 👥 Equipe de Desenvolvimento (Grupo 4)
 
 - **Eric Senne Roma**
 - **Carlos Fernando Mattos do Amaral**
