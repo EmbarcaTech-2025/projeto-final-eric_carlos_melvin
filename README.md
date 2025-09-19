@@ -132,7 +132,7 @@ cd "Etapa 4/projeto_final"
 
 ## 🎯 Conclusões
 
-O **HipSafe** representa um projeto de **alta complexidade** que integrou com sucesso sensores inerciais, matemática avançada e biomecânica. Desenvolvemos um driver proprietário para o MPU9250, superamos diversos obstáculos técnicos e implementamos uma arquitetura de software modular e eficiente em C++. A **prova de conceito confirma plenamente a viabilidade** da solução: com refinamento matemático e calibração aprimorada, o sistema é totalmente aplicável. 
+O **HipSafe** representa um projeto de **alta complexidade** que integrou sensores inerciais com matemática avançada e conceitos de biomecânica para alcançar seus objetivos. Desenvolvemos um driver proprietário para o MPU9250, superamos diversos obstáculos técnicos e implementamos uma arquitetura de software modular e eficiente em C++. A **prova de conceito confirma plenamente a viabilidade** da solução: com refinamento matemático e calibração aprimorada, o sistema é totalmente aplicável. 
 
 Atualmente, o sistema necessita de **aprimoramentos na calibração** para otimizar sua aplicação direta no corpo humano, representando uma oportunidade de desenvolvimento futuro que elevará a precisão e confiabilidade. Este projeto **interdisciplinar** possui ampla aplicabilidade em problemas de orientação espacial corporal, estabelecendo uma base sólida para futuras soluções em monitoramento biomecânico.
 
