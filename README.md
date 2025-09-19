@@ -48,7 +48,7 @@ Este projeto foi desenvolvido em **4 etapas principais**, cada uma documentada e
 
 ### 📁 [Etapa 4](./Etapa%204/) - Implementação Final
 - **Subpastas:**
-  - `📁 projeto_final/(./Etapa 4/projeto_final)` - Código-fonte completo do sistema
+  - `📁 projeto_final/`(./Etapa 4/projeto_final) - Código-fonte completo do sistema
   - `📁 Apresentação/` - Material de apresentação do projeto 
   - `📁 Esquemas/` - Diagramas técnicos e arquitetura
   - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando
