@@ -176,7 +176,7 @@ ninja
 | Especificação | Valor |
 |---------------|-------|
 | **Formato** | FAT32 |
-| **Arquivo Principal** | `eventos.csv` |
+| **Arquivo Principal** | `dados.csv` |
 | **Timestamp** | ISO 8601 (YYYY-MM-DDTHH:MM:SSZ) |
 
 ---
