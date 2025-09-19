@@ -7,7 +7,7 @@
 
 ## 📋 Sobre o Projeto
 
-O **HipSafe** é um sistema embarcado de monitoramento postural em tempo real, desenvolvido para auxiliar pacientes no processo de reabilitação de quadril. Utilizando a placa **BitDogLab (Raspberry Pi Pico W)** e sensores inerciais avançados, o sistema oferece detecção automática de posturas perigosas, feedback imediato e registro detalhado de dados para acompanhamento médico.
+O **HipSafe** é um sistema embarcado de monitoramento postural em tempo real, desenvolvido para auxiliar pacientes no processo de reabilitação de quadril. Utilizando a placa **BitDogLab (Raspberry Pi Pico W)** e sensores inerciais, o sistema oferece detecção automática de posturas perigosas (restrições pós cirúrgicas), feedback imediato e registro detalhado de dados para acompanhamento médico.
 
 ### 🎯 Objetivo Principal
 
@@ -48,10 +48,10 @@ Este projeto foi desenvolvido em **4 etapas principais**, cada uma documentada e
 
 ### 📁 [Etapa 4](./Etapa%204/) - Implementação Final
 - **Subpastas:**
-  - `📁 projeto_final/` - Código-fonte completo do sistema
-  - `📁 Apresentação/` - Material de apresentação do projeto 
-  - `📁 Esquemas/` - Diagramas técnicos e arquitetura
-  - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando
+  - `📁 projeto_final/` - Código-fonte completo do sistema [Projeto Final](./Etapa%204/projeto_final/)
+  - `📁 Apresentação/` - Material de apresentação do projeto [Apresentação](./Etapa%204/Apresentação/)
+  - `📁 Esquemas/` - Diagramas técnicos e arquitetura [Esquemas](./Etapa%204/Esquemas/)
+  - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando [Vídeo](./Etapa%204/Vídeo/)
 ---
 
 ## 🚀 Quick Start
@@ -107,9 +107,6 @@ cd "Etapa 4/projeto_final"
 
 ### 📊 Métricas de Performance
 - **Taxa de amostragem:** 100Hz
-- **Precisão angular:** ±1°
-- **Tempo de resposta:** <100ms
-- **Autonomia:** Limitada apenas pela fonte de energia
 
 ---
 
