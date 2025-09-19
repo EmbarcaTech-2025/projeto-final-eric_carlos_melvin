@@ -144,7 +144,7 @@ ninja
   Timestamp,Lado,TipoMovimento,AnguloMaximo
   2025-01-15T14:30:45Z,direita,Flexão,95.2
   ```
-- **Arquivo:** `eventos.csv` na raiz do cartão SD
+- **Arquivo:** `dados.csv` na raiz do cartão SD
 - **Backup de Segurança:** Sistema de watchdog previne perda de dados
 
 ### 6. 🛡️ Monitoramento de Sistema
