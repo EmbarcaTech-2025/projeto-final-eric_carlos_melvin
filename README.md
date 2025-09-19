@@ -7,7 +7,7 @@
 
 ## 📋 Sobre o Projeto
 
-O **HipSafe** é um sistema embarcado inovador de monitoramento postural em tempo real, desenvolvido especificamente para auxiliar pacientes no processo de reabilitação de quadril. Utilizando a placa **BitDogLab (Raspberry Pi Pico W)** e sensores inerciais avançados, o sistema oferece detecção automática de posturas perigosas, feedback imediato e registro detalhado de dados para acompanhamento médico.
+O **HipSafe** é um sistema embarcado de monitoramento postural em tempo real, desenvolvido para auxiliar pacientes no processo de reabilitação de quadril. Utilizando a placa **BitDogLab (Raspberry Pi Pico W)** e sensores inerciais avançados, o sistema oferece detecção automática de posturas perigosas, feedback imediato e registro detalhado de dados para acompanhamento médico.
 
 ### 🎯 Objetivo Principal
 
