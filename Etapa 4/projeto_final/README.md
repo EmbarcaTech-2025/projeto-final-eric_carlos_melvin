@@ -204,7 +204,8 @@ ninja
 ### Software
 - Pico SDK v1.5.1
 - CMake 3.13+
-- Biblioteca FatFs_SPI
+- Biblioteca FatFs_SPI: 
+- Biblioteca DS3231: https://github.com/alpertng02/pico-ds3231.git
 - Filtro Madgwick AHRS
 
 ---
