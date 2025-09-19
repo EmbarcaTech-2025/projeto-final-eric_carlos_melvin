@@ -1,4 +1,4 @@
-# Sistema de Monitoramento Ativo para Reabilitação de Quadril
+# HipSafe - Sistema de Monitoramento Ativo para Reabilitação de Quadril
 
 ![Status](https://img.shields.io/badge/Status-Ativo-green)
 ![Versão](https://img.shields.io/badge/Versão-0.1-blue)
