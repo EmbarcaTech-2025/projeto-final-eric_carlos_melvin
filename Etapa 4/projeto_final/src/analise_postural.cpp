@@ -1,47 +1,62 @@
-#include "analise_postural.h"
-#include "evento.h"
-#include <vector>
-#include <memory>
-#include <ctime>
-#include <cmath>
-#include "pico/time.h"  // Para funções de tempo do Pico SDK
+#include "analise_postural.h"   // Declarações das funções e estruturas principais de análise postural
+#include "evento.h"             // Definição da classe Evento para controle de eventos de postura
+#include <vector>                // STL: Estrutura de dados dinâmica para lista de eventos
+#include <memory>                // STL: Gerenciamento automático de memória (smart pointers)
+#include <ctime>                 // Funções de data e hora padrão C/C++
+#include <cmath>                 // Funções matemáticas padrão (ex: trigonometria)
+#include "pico/time.h"          // Funções de tempo específicas do Pico SDK
 
-// Definições de constantes matemáticas
+// ===============================
+// Definições e Constantes Globais
+// ===============================
+
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
 #endif
 
-// Função auxiliar para conversão de graus para radianos
+// Conversão de graus para radianos
 static float deg_to_rad(float degrees) {
     return degrees * M_PI_F / 180.0f;
 }
 
-// Includes para integração com outros módulos
+// Inclusão de módulos C para integração com hardware e algoritmos externos
 extern "C" {
-    #include "SDCard.h"  // SDCard habilitado para salvamento de dados
-    #include "sensor_watchdog.h"  // Sistema de watchdog dos sensores
-    #include "buzzer.h"
-    #include "algoritmo_postura.h"
-    #include "MadgwickAHRS.h"
+    #include "SDCard.h"           // Manipulação do SDCard para salvar eventos
+    #include "sensor_watchdog.h"  // Watchdog para monitoramento dos sensores
+    #include "buzzer.h"           // Controle do buzzer (alarme sonoro)
+    #include "algoritmo_postura.h"// Algoritmo de análise postural
+    #include "MadgwickAHRS.h"     // Filtro Madgwick para orientação
 }
 
-// Variáveis globais para gerenciamento de eventos
+// ===============================
+// Variáveis Globais de Estado
+// ===============================
+
+// Lista de eventos ativos (eventos de postura perigosa em andamento)
 static std::vector<std::unique_ptr<Evento>> eventos_ativos;
+
+// Estrutura global para controle do estado do alarme
 static Alarme alarme_global = {false, false};
 
-// Variáveis para controle do período de estabilização
+// Controle do período de estabilização dos sensores após inicialização
 static bool sistema_inicializado = false;
 static uint32_t tempo_inicio_ms = 0;
-static const uint32_t TEMPO_ESTABILIZACAO_MS = 5000; // 5 segundos para estabilização
+static const uint32_t TEMPO_ESTABILIZACAO_MS = 5000; // 5 segundos
 
+// ===============================
+// Funções Auxiliares de Conversão
+// ===============================
+
+// Converte enum LadoCorpo para string
 static const char* ladoToStr(LadoCorpo l) {
     switch(l){
         case LadoCorpo::DIREITO:  return "DIREITO";
-        case LadoCorpo::ESQUERDO:  return "ESQUERDO";
+        case LadoCorpo::ESQUERDO: return "ESQUERDO";
         default: return "??";
     }
 }
 
+// Converte enum TipoMovimento para string
 static const char* movToStr(TipoMovimento m) {
     switch(m){
         case TipoMovimento::FLEXAO:   return "FLEXAO";
@@ -52,105 +67,111 @@ static const char* movToStr(TipoMovimento m) {
     }
 }
 
-/***
- * @brief Função "local" que verifica se um evento está aberto para determinada 
- * perna e tipo de movimento.
- * @param[in] perna   Identificador da perna analisada (enum LadoCorpo).
- * @param[in] perigo  Tipo de movimento considerado perigoso (enum TipoMovimento).
- * @return `true` se existe algum evento aberto para a perna e perigo informados;  
- *         `false` caso contrário.
+// ===============================
+// Função: Verifica se há evento aberto
+// ===============================
+/**
+ * @brief Verifica se já existe um evento aberto para determinada perna e tipo de movimento.
+ *
+ * Percorre a lista global de eventos ativos e verifica se há algum evento
+ * correspondente ao lado (perna) e ao tipo de movimento perigoso informado.
+ * Retorna true se encontrar um evento aberto para a combinação especificada,
+ * ou se houver um evento aberto para a perna, mas que já saiu do perigo (NORMAL).
+ *
+ * @param perna  Enum identificando o lado do corpo (DIREITO/ESQUERDO)
+ * @param perigo Enum do tipo de movimento perigoso a ser verificado
+ * @return true se existe evento aberto para a perna e perigo informados, false caso contrário
  */
-static bool isEventOpen(LadoCorpo perna, TipoMovimento perigo) {
-    // Para cada evento dentro do vetor eventos (variável global):
-    for (const auto& evento : eventos_ativos) {
-        // é a mesma perna?
-        if (evento->getLado() == perna) {
-            // tem perigo?
-            if (evento->getPerigo() != TipoMovimento::NORMAL) {
-                // é o mesmo perigo?
-                if (evento->getPerigo() == perigo) {
-                    return true; // evento aberto para esta perna e perigo
+static bool isEventOpen(LadoCorpo perna, TipoMovimento perigo) 
+{
+    // Percorre todos os eventos ativos
+    for (const auto& evento : eventos_ativos) 
+    {
+        // Verifica se o evento corresponde à perna analisada
+        if (evento->getLado() == perna) 
+        {
+            // Se o evento ainda está em situação de perigo (diferente de NORMAL)
+            if (evento->getPerigo() != TipoMovimento::NORMAL) 
+            {
+                // Verifica se o tipo de perigo é o mesmo solicitado
+                if (evento->getPerigo() == perigo) 
+                {
+                    // Já existe evento aberto para esta perna e perigo
+                    return true;
                 }
-            } else {
-                // não tem perigo - evento aberto, mas já saiu do perigo
+            } 
+            else 
+            {
+                // Existe evento aberto para a perna, mas já saiu do perigo
+                // (pode ser usado para lógica de encerramento ou transição)
                 return true;
             }
         }
     }
-    // Se passou por todos os eventos da lista, retorna false
+    // Não encontrou evento aberto correspondente
     return false;
 }
 
-// RELATIVO A FUNÇÕES PRINCIPAIS:
-/***
- * @brief ORGANIZA a coleta dos parâmetros passados pelas MPUs, até a
- * saída de Orientação
- * @param[in] mpu_list[2] Recebe uma lista com 2 objetos da MPU9250 (tronco e coxa)
- * @return Orientacao - ângulos em graus de flexão, rotação e abdução
- * dentro de uma struct Orientacao
+// ===============================
+// Função Principal: getPosition
+// ===============================
+/**
+ * @brief Realiza a leitura dos sensores, processa os dados e retorna a orientação (ângulos) da articulação monitorada.
+ *
+ * Esta função executa toda a cadeia de processamento dos sensores inerciais:
+ *  - Lê dados brutos dos sensores MPU9250 (tronco e coxa)
+ *  - Alimenta o watchdog para detecção de travamentos
+ *  - Lê dados processados dos sensores
+ *  - Aplica o filtro Madgwick para obter orientação em quaternion
+ *  - Calcula o quaternion relativo entre tronco e coxa
+ *  - Extrai ângulos articulares (flexão, abdução, rotação)
+ *  - Converte para graus e retorna na estrutura Orientacao
+ *
+ * @param mpu_list Array de 2 sensores MPU9250 (mpu_list[0]=tronco, mpu_list[1]=coxa)
+ * @return Estrutura Orientacao com ângulos de flexão, abdução e rotação em graus
  */
-Orientacao getPosition(mpu9250_t mpu_list[2]) {
-    /*
-        Implementação do algoritmo conforme especificação:
-        (1) Requisita os dados "brutos" dos dois sensores da lista de sensores
-        (2) Transforma eles em quaternions com algoritmo Madgwick
-        (3) Descobre o quaternion relativo entre eles 
-        (4) Descobre os ângulos relativos aos movimentos (Orientacao)
-        (5) Retorna esta Orientação   
-        
-        Utiliza mpu_list[0] (tronco) e mpu_list[1] (coxa/perna)
-        Não há terceiro sensor nesta implementação
-    */
-    
-    Orientacao orientacao = {0};
-    
-    // (1) Leitura dos dados brutos dos sensores PRIMEIRO (para watchdog)
+Orientacao getPosition(mpu9250_t mpu_list[2]) 
+{
+    Orientacao orientacao = {0}; // Inicializa estrutura de retorno zerada
+
+    // === 1. Leitura dos dados brutos dos sensores ===
     mpu9250_raw_data_t raw_data_tronco, raw_data_coxa;
-    
-    // Lê dados brutos do sensor do tronco (mpu_list[0])
-    mpu9250_read_raw(&mpu_list[0], &raw_data_tronco);
-    
-    // Lê dados brutos do sensor da coxa (mpu_list[1])  
-    mpu9250_read_raw(&mpu_list[1], &raw_data_coxa);
-    
-    // Alimenta o watchdog com dados brutos para detecção de travamento
+    mpu9250_read_raw(&mpu_list[0], &raw_data_tronco); // Lê dados do sensor do tronco
+    mpu9250_read_raw(&mpu_list[1], &raw_data_coxa);   // Lê dados do sensor da coxa
+
+    // Alimenta o watchdog para ambos sensores (detecção de travamento)
     sensor_watchdog_feed(mpu_list[0].id, &raw_data_tronco);
     sensor_watchdog_feed(mpu_list[1].id, &raw_data_coxa);
-    
-    // Agora lê dados processados para os cálculos
+
+    // === 2. Leitura dos dados processados dos sensores ===
     mpu9250_data_t data_tronco, data_coxa;
-    
-    // Lê dados do sensor do tronco (mpu_list[0])
-    mpu9250_read_data(&mpu_list[0], &data_tronco);
-    
-    // Lê dados do sensor da coxa (mpu_list[1])
-    mpu9250_read_data(&mpu_list[1], &data_coxa);
-    
-    // (2) Transformação em quaternions usando algoritmo Madgwick
-    
-    // Estruturas AHRS para os sensores (locais para esta função)
+    mpu9250_read_data(&mpu_list[0], &data_tronco); // Dados filtrados do tronco
+    mpu9250_read_data(&mpu_list[1], &data_coxa);   // Dados filtrados da coxa
+
+    // === 3. Processamento dos dados com o filtro Madgwick (quaternion) ===
+    // Estruturas estáticas para manter estado do filtro entre chamadas
     static AHRS_data_t imu_tronco, imu_coxa;
     static bool initialized = false;
-    
-    // Inicialização dos algoritmos Madgwick (apenas na primeira chamada)
-    if (!initialized) {
-        MadgwickAHRSinit(&imu_tronco, 100.0f); // 100 Hz
-        MadgwickAHRSinit(&imu_coxa, 100.0f);   // 100 Hz
+    if (!initialized) 
+    {
+        // Inicializa o filtro Madgwick para ambos sensores (100Hz)
+        MadgwickAHRSinit(&imu_tronco, 100.0f);
+        MadgwickAHRSinit(&imu_coxa, 100.0f);
         initialized = true;
     }
-    
-    // Preparação dos dados para o algoritmo Madgwick (tronco)
+
+    // Preenche estrutura do filtro Madgwick com dados do tronco
     imu_tronco.accel[0] = data_tronco.accel[0];
     imu_tronco.accel[1] = data_tronco.accel[1];
     imu_tronco.accel[2] = data_tronco.accel[2];
-    imu_tronco.gyro[0] = deg_to_rad(data_tronco.gyro[0]);
+    imu_tronco.gyro[0] = deg_to_rad(data_tronco.gyro[0]); // Converte para rad/s
     imu_tronco.gyro[1] = deg_to_rad(data_tronco.gyro[1]);
     imu_tronco.gyro[2] = deg_to_rad(data_tronco.gyro[2]);
     imu_tronco.mag[0] = data_tronco.mag[0];
     imu_tronco.mag[1] = data_tronco.mag[1];
     imu_tronco.mag[2] = data_tronco.mag[2];
-    
-    // Preparação dos dados para o algoritmo Madgwick (coxa)
+
+    // Preenche estrutura do filtro Madgwick com dados da coxa
     imu_coxa.accel[0] = data_coxa.accel[0];
     imu_coxa.accel[1] = data_coxa.accel[1];
     imu_coxa.accel[2] = data_coxa.accel[2];
@@ -160,144 +181,207 @@ Orientacao getPosition(mpu9250_t mpu_list[2]) {
     imu_coxa.mag[0] = data_coxa.mag[0];
     imu_coxa.mag[1] = data_coxa.mag[1];
     imu_coxa.mag[2] = data_coxa.mag[2];
-    
-    // Atualização dos algoritmos Madgwick
+
+    // Atualiza o filtro Madgwick para ambos sensores
     MadgwickAHRSupdate(&imu_tronco);
     MadgwickAHRSupdate(&imu_coxa);
-    
-    // Conversão dos quaternions do Madgwick para a estrutura Quaternion
+
+    // === 4. Calcula o quaternion relativo (tronco -> coxa) ===
+    // Constrói quaternions a partir dos dados do filtro
     Quaternion q_tronco = { 
         .w = imu_tronco.orientation.q0, 
         .x = imu_tronco.orientation.q1, 
         .y = imu_tronco.orientation.q2, 
         .z = imu_tronco.orientation.q3 
     };
-    
     Quaternion q_coxa = { 
         .w = imu_coxa.orientation.q0, 
         .x = imu_coxa.orientation.q1, 
         .y = imu_coxa.orientation.q2, 
         .z = imu_coxa.orientation.q3 
     };
-    
-    // (3) Cálculo do quaternion relativo (tronco -> coxa)
+    // Calcula o quaternion relativo entre tronco e coxa
     Quaternion q_rel = relative_quaternion(q_tronco, q_coxa);
-    
-    // (4) Extração dos ângulos relativos aos movimentos
+
+    // === 5. Extrai ângulos articulares relativos (flexão, abdução, rotação) ===
     float flexao_rad, aducao_rad, rotacao_rad;
-    bool rotacao_interna_30, flexao_maior_90, cruzamento_pernas;
     
-    hip_angles(q_rel, &flexao_rad, &aducao_rad, &rotacao_rad, 
-               &rotacao_interna_30, &flexao_maior_90, &cruzamento_pernas);
-    
-    // (5) Conversão para graus e preenchimento da estrutura de retorno
+    // Função quaternion_to_hip_angles extrai os ângulos articulares principais a partir do quaternion relativo
+    quaternion_to_hip_angles(q_rel, &flexao_rad, &aducao_rad, &rotacao_rad);
+
+    // === 6. Converte ângulos para graus e preenche estrutura de retorno ===
     const float RAD2DEG = 180.0f / M_PI_F;
-    orientacao.flexao = -flexao_rad * RAD2DEG;
-    orientacao.rotacao = rotacao_rad * RAD2DEG;
-    orientacao.abducao = aducao_rad * RAD2DEG;  // Note: abducao = aducao
-    
-    // Imprime os ângulos continuamente
+    orientacao.flexao   =  flexao_rad * RAD2DEG; 
+    orientacao.rotacao  =  rotacao_rad * RAD2DEG;
+    orientacao.abducao  =  aducao_rad * RAD2DEG; 
+
+    // Log dos ângulos para depuração e acompanhamento em tempo real
     printf("Ângulos: Flexão=%.2f° | Adução=%.2f° | Rotação=%.2f°\n", 
            orientacao.flexao, orientacao.abducao, orientacao.rotacao);
-    
-    // Inicializa o controle de tempo na primeira chamada
-    if (!sistema_inicializado) {
+
+    // === 7. Inicializa controle de tempo na primeira chamada ===
+    if (!sistema_inicializado) 
+    {
         tempo_inicio_ms = to_ms_since_boot(get_absolute_time());
         sistema_inicializado = true;
         printf("Sistema iniciado - período de estabilização de %d segundos\n", TEMPO_ESTABILIZACAO_MS / 1000);
     }
-    
+
     return orientacao;
 }
 
-/***
- * @brief Função auxiliar para salvar evento no SDCard
+// ===============================
+// Função Auxiliar: salvarEventoSDCard
+// ===============================
+/**
+ * @brief Salva um evento encerrado no SDCard, registrando lado, tipo de movimento e ângulo máximo.
  * @param evento Ponteiro para o evento a ser salvo
  */
-static void salvarEventoSDCard(const std::unique_ptr<Evento>& evento) {
-    // Converte enums para strings
+/**
+ * @brief Salva um evento de postura no SDCard, registrando lado, tipo de movimento e ângulo máximo.
+ *
+ * Esta função converte os enums do evento para strings legíveis, chama a função de registro
+ * (que já gera os timestamps automaticamente) e faz o log do sucesso ou falha da operação.
+ *
+ * @param evento Ponteiro único para o evento a ser salvo
+ */
+static void salvarEventoSDCard(const std::unique_ptr<Evento>& evento) 
+{
+    // Determina o lado do corpo como string para registro
     const char* lado_str = (evento->getLado() == LadoCorpo::DIREITO) ? "direita" : "esquerda";
+
+    // Converte o tipo de movimento perigoso para string
     const char* movimento_str = movToStr(evento->getPerigo());
-    
-    // Usa a função register_movement_with_timestamps que já gera timestamps automáticos
+
+    // Chama a função de registro, que salva o evento no SDCard e gera timestamps automaticamente
     bool sucesso = register_movement_with_timestamps(lado_str, movimento_str, evento->getMaxAngulo());
-    
-    if (sucesso) {
-        printf("Evento salvo no SDCard: %s, %s, %.2f graus, duração: %lld ms\n", 
+
+    // Loga o resultado da operação para depuração e acompanhamento
+    if (sucesso) 
+    {
+        printf("[SDCard] Evento salvo: Lado=%s, Movimento=%s, Ângulo=%.2f°, Duração=%lld ms\n", 
                lado_str, movimento_str, evento->getMaxAngulo(), evento->getDuracaoMS());
-    } else {
-        printf("Erro ao salvar evento no SDCard\n");
+    } 
+    else 
+    {
+        printf("[SDCard] ERRO ao salvar evento: Lado=%s, Movimento=%s, Ângulo=%.2f°\n", 
+               lado_str, movimento_str, evento->getMaxAngulo());
     }
 }
 
-/***
- * @brief Função auxiliar para gerenciar alarme
+// ===============================
+// Função Auxiliar: gerenciarAlarme
+// ===============================
+/**
+ * @brief Liga ou desliga o alarme sonoro conforme o estado do sistema e eventos ativos.
  * @param ligar Se true, liga o alarme; se false, verifica se deve desligar
  */
-static void gerenciarAlarme(bool ligar) {
-    if (ligar && !alarme_global.ligado) {
-        alarme_global.ligado = true;
-        alarme_global.silenciado = false;
-        if (!alarme_global.silenciado) {
-            buzzer_alarm_on(); // Liga o buzzer apenas se não estiver silenciado
+/**
+ * @brief Gerencia o estado do alarme sonoro (buzzer) conforme a situação do sistema e dos eventos ativos.
+ *
+ * Esta função centraliza toda a lógica de ativação e desativação do alarme:
+ *  - Liga o alarme se solicitado e ainda não estiver ligado
+ *  - Garante que o buzzer só toca se não estiver silenciado
+ *  - Desliga o alarme quando não há mais eventos ativos
+ *  - Garante que o buzzer permanece desligado se o alarme estiver silenciado
+ *
+ * @param ligar Se true, solicita ligar o alarme; se false, solicita desligar
+ */
+static void gerenciarAlarme(bool ligar) 
+{
+    // Caso 1: Solicitação para ligar o alarme e ele ainda não está ligado
+    if (ligar && !alarme_global.ligado) 
+    {
+        alarme_global.ligado = true;        // Marca o alarme como ligado
+        alarme_global.silenciado = false;   // Garante que não está silenciado
+        if (!alarme_global.silenciado) 
+        {
+            buzzer_alarm_on();              // Ativa o buzzer
         }
-        printf("ALARME LIGADO - Postura perigosa detectada!\n");
-    } else if (ligar && alarme_global.ligado && !alarme_global.silenciado) {
-        // Alarme já está ligado, mas verifica se deve tocar (caso tenha sido desilenciado)
-        buzzer_alarm_on();
-    } else if (!ligar && alarme_global.ligado) {
-        // Verifica se ainda há eventos ativos
-        if (eventos_ativos.empty()) {
+        printf("[ALARME] LIGADO - Postura perigosa detectada!\n");
+    }
+
+    // Caso 2: Solicitação para ligar, já está ligado, mas pode ter sido desilenciado
+    else if (ligar && alarme_global.ligado && !alarme_global.silenciado) 
+    {
+        buzzer_alarm_on();                  // Garante que o buzzer está ativo
+    }
+
+    // Caso 3: Solicitação para desligar o alarme
+    else if (!ligar && alarme_global.ligado) 
+    {
+        // Só desliga se não houver mais eventos ativos
+        if (eventos_ativos.empty()) 
+        {
             alarme_global.ligado = false;
             alarme_global.silenciado = false;
-            buzzer_alarm_off(); // Desliga o buzzer
-            printf("ALARME DESLIGADO - Postura normalizada\n");
+            buzzer_alarm_off();
+            printf("[ALARME] DESLIGADO - Postura normalizada\n");
         }
     }
-    
-    // Se o alarme está ligado mas foi silenciado, não toca o buzzer
-    if (alarme_global.ligado && alarme_global.silenciado) {
+
+    // Caso 4: Se o alarme está ligado mas silenciado, garante que o buzzer está desligado
+    if (alarme_global.ligado && alarme_global.silenciado) 
+    {
         buzzer_alarm_off();
     }
 }
 
-/***
- * @brief ORGANIZA / IMPLEMENTA o algorítmo de checkagem de risco de posição,
- * incluindo o gerenciamento dos alarmes e da gravação dos eventos no SDCard.
- * @param Orientacao - Recebe os ângulos de flexão, rotação e abdução.
- * @return void. 
+// ===============================
+// Função Principal: dangerCheck
+// ===============================
+/**
+ * @brief Verifica se a postura está em situação de risco, gerencia alarmes e eventos, e salva eventos no SDCard.
+ * @param orientacao Estrutura com ângulos de flexão, abdução e rotação
  */
-void dangerCheck(Orientacao orientacao) {
-    // Verifica se ainda está no período de estabilização
-    if (sistema_inicializado) {
+/**
+ * @brief Analisa a orientação atual e gerencia eventos e alarmes de postura perigosa.
+ *
+ * Esta função executa a lógica principal de detecção de risco postural:
+ *  - Aguarda o período de estabilização dos sensores antes de iniciar a análise
+ *  - Para cada tipo de movimento relevante (flexão, abdução, rotação):
+ *      - Verifica se o ângulo atual ultrapassa o limite seguro
+ *      - Se sim, abre ou atualiza um evento e liga o alarme
+ *      - Se não, encerra o evento (se houver) e salva no SDCard
+ *  - Ao final, exibe o status dos eventos ativos para depuração
+ *
+ * @param orientacao Estrutura com ângulos de flexão, abdução e rotação
+ */
+void dangerCheck(Orientacao orientacao) 
+{
+    // === 1. Aguarda estabilização dos sensores após inicialização ===
+    if (sistema_inicializado) 
+    {
         uint32_t tempo_atual_ms = to_ms_since_boot(get_absolute_time());
         uint32_t tempo_decorrido_ms = tempo_atual_ms - tempo_inicio_ms;
-        
-        if (tempo_decorrido_ms < TEMPO_ESTABILIZACAO_MS) {
-            // Ainda está no período de estabilização
+
+        // Se ainda está no período de estabilização, exibe tempo restante e retorna
+        if (tempo_decorrido_ms < TEMPO_ESTABILIZACAO_MS) 
+        {
             uint32_t tempo_restante_ms = TEMPO_ESTABILIZACAO_MS - tempo_decorrido_ms;
             printf("Estabilizando sensores... %d.%d segundos restantes\n", 
                    tempo_restante_ms / 1000, (tempo_restante_ms % 1000) / 100);
-            return; // Não executa verificação de perigo
-        } else if (tempo_decorrido_ms == TEMPO_ESTABILIZACAO_MS || 
-                  (tempo_decorrido_ms > TEMPO_ESTABILIZACAO_MS && 
-                   tempo_decorrido_ms < TEMPO_ESTABILIZACAO_MS + 1000)) {
-            // Primeira vez que sai do período de estabilização
+            return;
+        }
+
+        // Primeira vez após estabilização: sinaliza sistema ativo
+        else if (tempo_decorrido_ms == TEMPO_ESTABILIZACAO_MS || (tempo_decorrido_ms > TEMPO_ESTABILIZACAO_MS && tempo_decorrido_ms < TEMPO_ESTABILIZACAO_MS + 1000)) 
+        {
             printf("Período de estabilização concluído - sistema ativo!\n");
-            buzzer_beep(); // Beep para indicar que o sistema está ativo
+            buzzer_beep();
         }
     }
-    
-    // Array de tipos de movimento para verificar (ignoramos NORMAL)
+
+    // === 2. Verifica cada tipo de movimento relevante (exceto NORMAL) ===
     TipoMovimento tipos_movimento[] = {TipoMovimento::FLEXAO, TipoMovimento::ABDUCAO, TipoMovimento::ROTACAO};
-    
-    // Para cada tipo de movimento
-    for (TipoMovimento tipo : tipos_movimento) {
+    for (TipoMovimento tipo : tipos_movimento) 
+    {
         bool posicao_perigosa = false;
         float angulo_atual = 0.0f;
-        
-        // Verifica se a posição é perigosa baseada no tipo de movimento
-        switch (tipo) {
+
+        // Determina o ângulo atual e se está em situação perigosa
+        switch (tipo) 
+        {
             case TipoMovimento::FLEXAO:
                 angulo_atual = orientacao.flexao;
                 posicao_perigosa = (angulo_atual > LIMITACOES[static_cast<int>(TipoMovimento::FLEXAO)]);
@@ -311,95 +395,130 @@ void dangerCheck(Orientacao orientacao) {
                 posicao_perigosa = (angulo_atual > LIMITACOES[static_cast<int>(TipoMovimento::ROTACAO)]);
                 break;
             default:
-                continue; // Pula tipos inválidos
+                continue;
         }
-        
-        // Assumindo que estamos monitorando a perna direita por enquanto
-        // Em uma implementação completa, isso seria determinado pela entrada
+
+        // Por padrão, monitorando a perna direita (pode ser adaptado para o outro lado)
         LadoCorpo perna_atual = LadoCorpo::DIREITO;
-        
-        if (posicao_perigosa) {
-            // Posição perigosa detectada
-            if (!isEventOpen(perna_atual, tipo)) {
-                // Não há evento aberto para esta perna e tipo de movimento
-                // Cria um novo evento
+
+        if (posicao_perigosa) 
+        {
+            // === Situação perigosa detectada ===
+            // Se não há evento aberto para este tipo, cria novo evento e liga o alarme
+            if (!isEventOpen(perna_atual, tipo)) 
+            {
                 auto novo_evento = std::make_unique<Evento>(tipo, perna_atual, angulo_atual);
                 eventos_ativos.push_back(std::move(novo_evento));
-                
-                // Liga o alarme
                 gerenciarAlarme(true);
-                
                 printf("NOVO EVENTO CRIADO: %s - %s (%.2f graus)\n", 
                        ladoToStr(perna_atual), movToStr(tipo), angulo_atual);
-            } else {
-                // Evento já existe, atualiza o ângulo máximo
-                for (auto& evento : eventos_ativos) {
-                    if (evento->getLado() == perna_atual && evento->getPerigo() == tipo) {
+            } 
+            else 
+            {
+                // Se já existe evento aberto, apenas atualiza o ângulo máximo
+                for (auto& evento : eventos_ativos) 
+                {
+                    if (evento->getLado() == perna_atual && evento->getPerigo() == tipo) 
+                    {
                         evento->setAngulo(angulo_atual);
                         break;
                     }
                 }
             }
-        } else {
-            // Posição segura
-            // Verifica se algum evento está aberto para esta posição
+        } 
+        else 
+        {
+            // === Situação normalizada: encerra evento se houver ===
             auto it = eventos_ativos.begin();
-            while (it != eventos_ativos.end()) {
-                if ((*it)->getLado() == perna_atual && (*it)->getPerigo() == tipo) {
-                    // Encontrou evento aberto para esta perna e tipo
-                    // Encerra o evento
+            while (it != eventos_ativos.end()) 
+            {
+                if ((*it)->getLado() == perna_atual && (*it)->getPerigo() == tipo) 
+                {
                     (*it)->closeEvent();
-                    
-                    // Salva no SDCard
                     salvarEventoSDCard(*it);
-                    
                     printf("EVENTO ENCERRADO: %s - %s (%.2f graus max, %lld ms)\n", 
                            ladoToStr((*it)->getLado()), movToStr((*it)->getPerigo()), 
                            (*it)->getMaxAngulo(), (*it)->getDuracaoMS());
-                    
-                    // Remove da lista
                     it = eventos_ativos.erase(it);
-                    
-                    // Verifica se deve desligar o alarme
                     gerenciarAlarme(false);
                     break;
-                } else {
+                } 
+                else 
+                {
                     ++it;
                 }
             }
         }
     }
-    
-    // Debug: mostra status atual
-    if (!eventos_ativos.empty()) {
+
+    // === 3. Log de eventos ativos para depuração e acompanhamento ===
+    if (!eventos_ativos.empty()) 
+    {
         printf("Eventos ativos: %zu\n", eventos_ativos.size());
-        for (const auto& evento : eventos_ativos) {
+        for (const auto& evento : eventos_ativos) 
+        {
             printf("  - %s %s: %.2f graus, %lld ms\n", 
                    ladoToStr(evento->getLado()), movToStr(evento->getPerigo()),
                    evento->getMaxAngulo(), evento->getDuracaoMS());
         }
     }
-};
-
-// Funções para controle do alarme
-void silenciar_alarme(void) {
-    alarme_global.silenciado = true;
-    buzzer_alarm_off();
-    printf("Alarme silenciado pelo usuário\n");
 }
 
-void desilenciar_alarme(void) {
+// -------------------------------------------------------------------
+// Funções de Controle Manual do Alarme Sonoro (Buzzer)
+// -------------------------------------------------------------------
+
+/**
+ * @brief Silencia manualmente o alarme sonoro (buzzer).
+ *
+ * Esta função permite ao usuário silenciar o alarme, mesmo que uma condição de risco persista.
+ * O estado de "silenciado" é registrado na estrutura global do alarme, e o buzzer é desligado imediatamente.
+ * Um log é impresso para indicar a ação do usuário.
+ */
+void silenciar_alarme(void) 
+{
+    // Marca o alarme como silenciado (não emitirá som até ser desilenciado)
+    alarme_global.silenciado = true;
+    // Garante que o buzzer está desligado fisicamente
+    buzzer_alarm_off();
+    // Log para depuração e rastreabilidade
+    printf("[ALARME] Silenciado manualmente pelo usuário\n");
+}
+
+/**
+ * @brief Desfaz o silenciamento do alarme, religando o buzzer se necessário.
+ *
+ * Esta função remove o estado de "silenciado" do alarme. Caso o alarme ainda esteja ativo (ligado),
+ * o buzzer é religado automaticamente para alertar o usuário. Um log é impresso para indicar a ação.
+ */
+void desilenciar_alarme(void) 
+{
+    // Remove o estado de silenciado
     alarme_global.silenciado = false;
-    if (alarme_global.ligado) {
+    // Se o alarme está ativo, religa o buzzer imediatamente
+    if (alarme_global.ligado) 
+    {
         buzzer_alarm_on();
-        printf("Alarme desilenciado - buzzer religado\n");
+        printf("[ALARME] Desilenciado - buzzer religado\n");
     }
 }
 
-bool alarme_esta_ligado(void) {
+/**
+ * @brief Consulta se o alarme está atualmente ligado (ativo).
+ *
+ * @return true se o alarme está ligado (situação de risco detectada), false caso contrário.
+ */
+bool alarme_esta_ligado(void) 
+{
     return alarme_global.ligado;
 }
 
-bool alarme_esta_silenciado(void) {
+/**
+ * @brief Consulta se o alarme está silenciado manualmente.
+ *
+ * @return true se o alarme está silenciado pelo usuário, false caso contrário.
+ */
+bool alarme_esta_silenciado(void) 
+{
     return alarme_global.silenciado;
 }

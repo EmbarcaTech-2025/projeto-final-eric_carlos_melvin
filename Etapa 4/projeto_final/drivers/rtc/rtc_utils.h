@@ -1,9 +1,14 @@
+// ======================================================================
+//  Arquivo: rtc_utils.h
+//  Descrição: Interface utilitária para manipulação do RTC DS3231
+// ======================================================================
+
 #ifndef RTC_UTILS_H
 #define RTC_UTILS_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include "ds3231.h"
+#include <stdbool.h>    // Tipos booleanos padrão
+#include <stddef.h>     // Definição de size_t
+#include "ds3231.h"    // Tipos e funções do driver DS3231
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +21,9 @@ extern "C" {
  * Fornece funções para inicialização, leitura e formatação de data/hora do RTC de forma simples e reutilizável.
  */
 
+// ----------------------------------------------------------------------
+// Inicialização do RTC
+// ----------------------------------------------------------------------
 /**
  * @brief Inicializa o RTC DS3231 e ajusta automaticamente para a data/hora do sistema de compilação.
  *
@@ -25,6 +33,9 @@ extern "C" {
  */
 void rtc_ds3231_init(void);
 
+// ----------------------------------------------------------------------
+// Leitura da data/hora atual do RTC
+// ----------------------------------------------------------------------
 /**
  * @brief Atualiza a estrutura ds3231_data_t com a data/hora atual do RTC.
  *
@@ -33,6 +44,9 @@ void rtc_ds3231_init(void);
  */
 bool rtc_update_datetime(ds3231_data_t *dt);
 
+// ----------------------------------------------------------------------
+// Formatação de data/hora em string padrão
+// ----------------------------------------------------------------------
 /**
  * @brief Formata a data/hora em string reutilizável no padrão "YYYY-MM-DD HH:MM:SS".
  *

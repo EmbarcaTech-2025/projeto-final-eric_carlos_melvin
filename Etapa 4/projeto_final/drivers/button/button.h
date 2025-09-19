@@ -1,3 +1,4 @@
+
 #ifndef BUTTONS_H
 #define BUTTONS_H
 
@@ -8,19 +9,54 @@
 extern "C" {
 #endif
 
-// Definições dos pinos GPIO conectados aos botões A e B
-#define BUTTON_A 5   // Pino do botão A
-#define BUTTON_B 6   // Pino do botão B
+/**
+ * @file button.h
+ * @brief Interface de controle dos botões A e B para Raspberry Pi Pico.
+ *
+ * Este arquivo define as macros, variáveis globais e protótipos das funções
+ * para inicialização e detecção de eventos dos botões físicos.
+ */
 
-// Variáveis globais para indicar se os botões foram pressionados
-extern volatile bool button_a_pressed; // true se o botão A foi pressionado
-extern volatile bool button_b_pressed; // true se o botão B foi pressionado
+// ==================== Definições de Hardware ====================
 
 /**
- * Inicializa os botões A e B para uso com interrupção.
- * 
- * Configura os pinos como entrada com pull-up e ativa interrupção na borda de descida,
- * associando a função de callback para tratamento do evento.
+ * @def BUTTON_A
+ * @brief Pino GPIO utilizado para o botão A.
+ *
+ */
+#define BUTTON_A 5
+
+/**
+ * @def BUTTON_B
+ * @brief Pino GPIO utilizado para o botão B.
+ *
+ */
+#define BUTTON_B 6
+
+// ==================== Variáveis Globais ====================
+
+/**
+ * @brief Indica se o botão A foi pressionado.
+ *
+ * Deve ser lida e resetada pela aplicação principal após o tratamento do evento.
+ */
+extern volatile bool button_a_pressed;
+
+/**
+ * @brief Indica se o botão B foi pressionado.
+ *
+ * Deve ser lida e resetada pela aplicação principal após o tratamento do evento.
+ */
+extern volatile bool button_b_pressed;
+
+// ==================== Protótipos das Funções ====================
+
+/**
+ * @brief Inicializa os botões A e B para uso com interrupção e pull-up.
+ *
+ * Configura os pinos como entrada com resistor de pull-up interno e ativa
+ * a interrupção na borda de descida, associando a função de callback para
+ * tratamento dos eventos de pressionamento.
  */
 void setup_buttons(void);
 
@@ -28,4 +64,4 @@ void setup_buttons(void);
 }
 #endif
 
-#endif
+#endif // BUTTONS_H
