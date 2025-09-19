@@ -1,8 +1,6 @@
 // ======================================================================
 //  Arquivo: algoritmo_postura.c
 //  Descrição: Implementação dos algoritmos matemáticos para análise postural com quaternions
-//  Autor: [Seu Nome]
-//  Data: [Data de modificação]
 // ======================================================================
 
 #ifndef M_PI_F
