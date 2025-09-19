@@ -48,10 +48,10 @@ Este projeto foi desenvolvido em **4 etapas principais**, cada uma documentada e
 
 ### 📁 [Etapa 4](./Etapa%204/) - Implementação Final
 - **Subpastas:**
-  - `📁 projeto_final/` - Código-fonte completo do sistema [Projeto Final](./Etapa%204/projeto_final/)
-  - `📁 Apresentação/` - Material de apresentação do projeto [Apresentação](./Etapa%204/Apresentação/)
-  - `📁 Esquemas/` - Diagramas técnicos e arquitetura [Esquemas](./Etapa%204/Esquemas/)
-  - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando [Vídeo](./Etapa%204/Vídeo/)
+  - `📁 projeto_final/` - Código-fonte completo do sistema | [Projeto Final](./Etapa%204/projeto_final/)
+  - `📁 Apresentação/` - Material de apresentação do projeto | [Apresentação](./Etapa%204/Apresentação/)
+  - `📁 Esquemas/` - Diagramas técnicos e arquitetura | [Esquemas](./Etapa%204/Esquemas/)
+  - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando | [Vídeo](./Etapa%204/Vídeo/)
 ---
 
 ## 🚀 Quick Start
