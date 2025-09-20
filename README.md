@@ -51,7 +51,6 @@ Este projeto foi desenvolvido em **4 etapas principais**, cada uma documentada e
   - `📁 projeto_final/` - Código-fonte completo do sistema | [Projeto Final](./Etapa%204/projeto_final/)
   - `📁 Apresentação/` - Material de apresentação do projeto | [Apresentação](./Etapa%204/Apresentação/)
   - `📁 Esquemas/` - Diagramas técnicos e arquitetura | [Esquemas](./Etapa%204/Esquemas/)
-  - `📁 Vídeo/` - Demonstração em vídeo do sistema funcionando | [Vídeo](./Etapa%204/Vídeo/)
 ---
 
 ## 🚀 Quick Start
@@ -126,7 +125,7 @@ cd "Etapa 4/projeto_final"
 
 ### 🎥 Material de Apresentação
 - [📊 Apresentação Final](./Etapa%204/Apresentação/HipSafe%20-%20Apresentação.pptx)
-- [🎬 Vídeo Demonstrativo](./Etapa%204/Vídeo/)
+- [🎬 Vídeo Demonstrativo](https://youtu.be/QpHoeITohsI)
 
 ---
 
